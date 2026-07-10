@@ -1,0 +1,85 @@
+@import "@fontsource-variable/bricolage-grotesque";
+@import "@fontsource-variable/figtree";
+@import "@fontsource/spline-sans-mono/400.css";
+@import "@fontsource/spline-sans-mono/500.css";
+@import "tailwindcss";
+@import "@heroui/styles";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-ever-950: #0a2e25;
+  --color-ever-900: #0c473a;
+  --color-ever-800: #0e5f4c;
+  --color-ever-700: #14735d;
+  --color-ever-600: #1e8a70;
+  --color-ever-500: #2ba184;
+  --color-ever-100: #dcefe7;
+  --color-ever-50: #eef7f2;
+
+  --color-ink: #161a18;
+  --color-ink-soft: #3d4642;
+  --color-ink-mute: #6b7570;
+
+  --color-porcelain: #f4f6f3;
+  --color-paper: #fbfcfa;
+  --color-celadon: #cfe3da;
+  --color-hairline: #dfe6e1;
+
+  --color-marigold-600: #d18a1f;
+  --color-marigold-500: #e8a33d;
+  --color-marigold-100: #faecd3;
+
+  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-body: "Figtree Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Spline Sans Mono", ui-monospace, monospace;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-body);
+  background: var(--color-porcelain);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-display { font-family: var(--font-display); }
+.font-mono { font-family: var(--font-mono); }
+
+.redact {
+  background: repeating-linear-gradient(90deg, var(--color-ink) 0 6px, var(--color-ink-soft) 6px 10px);
+  border-radius: 3px;
+  color: transparent;
+  user-select: none;
+}
+
+::selection { background: var(--color-celadon); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+@media (hover: hover) {
+  .lift { transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .lift:hover { transform: translateY(-3px); }
+}
+
+:focus-visible { outline: 2px solid var(--color-ever-600); outline-offset: 2px; }
+
+/* ---- dark theme: flip the semantic tokens ---- */
+.dark {
+  --color-porcelain: #101512;
+  --color-paper: #171d19;
+  --color-ink: #e9f0ea;
+  --color-ink-soft: #b4c0b8;
+  --color-ink-mute: #7d8a81;
+  --color-hairline: #26302a;
+  --color-celadon: #1e3229;
+  --color-ever-50: #14231c;
+  --color-ever-100: #1a3128;
+  --color-marigold-100: #33270f;
+  color-scheme: dark;
+}
+.dark body { background: var(--color-porcelain); }
+.dark .redact {
+  background: repeating-linear-gradient(90deg, #e9f0ea 0 6px, #b4c0b8 6px 10px);
+}
