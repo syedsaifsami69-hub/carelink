@@ -1,6 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { randomToken, sha256, hashAccessCode, rateLimiter } from "./security.js";
+import { audit } from "./audit.js";
 
 export const COOKIE = "cl_session";
 const STAFF_TTL_MS = 12 * 36e5;
@@ -62,9 +63,13 @@ export function authRoutes(db) {
     if (!loginLimit.hit(key)) return res.status(429).json({ error: "Too many attempts. Try again in 15 minutes." });
     const user = await db.user.findUnique({ where: { email } });
     const ok = await bcrypt.compare(password, user?.passwordHash || DUMMY_HASH);
-    if (!user || !ok) return res.status(401).json({ error: "Email or password is incorrect" });
+    if (!user || !ok) {
+      audit(db, req, "auth.login_failed", { hospitalId: user?.hospitalId ?? null, meta: { email } });
+      return res.status(401).json({ error: "Email or password is incorrect" });
+    }
     loginLimit.reset(key);
     await startSession(res, { userId: user.id }, STAFF_TTL_MS);
+    audit(db, { ip: req.ip, auth: { kind: "staff", user, hospitalId: user.hospitalId } }, "auth.login");
     const hospital = await db.hospital.findUnique({ where: { id: user.hospitalId } });
     res.json({ kind: "staff", user: publicUser(user), hospital: { id: hospital.id, name: hospital.name } });
   });
@@ -74,9 +79,13 @@ export function authRoutes(db) {
     const access = await db.visitAccess.findUnique({
       where: { codeHash: hashAccessCode(req.body?.code) }, include: { visit: true },
     });
-    if (!access || access.revokedAt || access.expiresAt < new Date())
+    if (!access || access.revokedAt || access.expiresAt < new Date()) {
+      // known-but-dead codes are attributable to a hospital; unknown ones are not
+      audit(db, req, "patient.access_failed", { hospitalId: access?.visit.hospitalId ?? null, entityType: access ? "visit" : undefined, entityId: access?.visitId });
       return res.status(401).json({ error: "This access code is invalid or has expired. Ask reception for a new one." });
+    }
     await startSession(res, { visitId: access.visitId }, Math.min(PATIENT_TTL_MS, access.expiresAt - Date.now()));
+    audit(db, { ip: req.ip, auth: { kind: "patient", visit: access.visit, hospitalId: access.visit.hospitalId } }, "patient.access", { entityType: "visit", entityId: access.visitId });
     res.json({ kind: "patient", visit: { id: access.visit.id, label: access.visit.label } });
   });
 

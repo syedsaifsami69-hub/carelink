@@ -1,11 +1,16 @@
 import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { UserPlus, Upload, Search, Users, MessageSquare, FlaskConical, Clock, Table2, Columns3, ArrowRight, Paperclip, Inbox, KeyRound, Copy } from "lucide-react";
+import { UserPlus, Upload, Search, Users, MessageSquare, FlaskConical, Clock, Table2, Columns3, ArrowRight, Paperclip, Inbox, KeyRound, Copy, Flag, History, ListOrdered, CalendarDays } from "lucide-react";
+import { PatientPicker, EMPTY_PATIENT, patientBody } from "../lib/PatientPicker";
+import Appointments from "./Appointments";
 import { api, useWorkspace, fmtDateTime } from "../lib/store";
 import { Shell, Modal, useToast, spring, Avatar, initials, STATUS_TONE } from "../lib/Shell";
 
-const STATUSES = ["Waiting", "In consult", "Labs pending", "Done"];
-const EMPTY_FORM = { name: "", age: "", sex: "F", doctorId: "" };
+const STATUSES = ["Waiting", "In consult", "Labs pending", "Follow-up", "Done", "Cancelled", "No-show"];
+const BOARD = ["Waiting", "In consult", "Labs pending", "Follow-up", "Done"];
+const FILTERS = ["All", "Waiting", "In consult", "Labs pending", "Follow-up", "Done"];
+const EMPTY_FORM = { patient: EMPTY_PATIENT, doctorId: "", priority: false, duplicates: null };
+const queueText = (q) => q && `#${q.position} in line${q.estimateMinutes > 0 ? ` · ~${q.estimateMinutes} min (estimate)` : ""}`;
 
 export default function Staff() {
   const { data, online, refresh, error } = useWorkspace();
@@ -23,6 +28,8 @@ export default function Staff() {
   const [view, setView] = useState("table");
   const [dragId, setDragId] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState("queue");
+  const [history, setHistory] = useState(null); // { visit, events }
 
   const rows = useMemo(() => {
     let r = visits;
@@ -42,17 +49,30 @@ export default function Staff() {
   const run = async (fn, ok) => {
     setBusy(true);
     try { const out = await fn(); if (ok) toast(ok); await refresh(); return out; }
-    catch (e) { toast(e.message); return null; }
+    catch (e) { toast(e.message, "error"); return null; }
     finally { setBusy(false); }
   };
   const update = (id, patch) => run(() => api(`/api/visits/${id}`, { method: "PATCH", body: patch }));
 
-  const register = async () => {
-    const out = await run(() => api("/api/visits", { method: "POST", body: { ...form, age: Number(form.age), doctorId: form.doctorId || doctors[0]?.id } }));
-    if (!out) return;
-    setShowReg(false);
-    setForm(EMPTY_FORM);
-    setAccessFor({ visit: { id: out.id, label: out.label, name: form.name }, code: out.accessCode, expiresAt: out.accessExpiresAt });
+  const register = async (confirmNew = false) => {
+    setBusy(true);
+    try {
+      const out = await api("/api/visits", { method: "POST", body: {
+        ...patientBody(form.patient, confirmNew), doctorId: form.doctorId || doctors[0]?.id, priority: form.priority,
+      } });
+      setShowReg(false);
+      setAccessFor({ visit: { id: out.id, label: out.label, name: form.patient.name }, code: out.accessCode, expiresAt: out.accessExpiresAt });
+      setForm(EMPTY_FORM);
+      await refresh();
+    } catch (e) {
+      if (e.data?.duplicates) setForm((f) => ({ ...f, duplicates: e.data.duplicates }));
+      else toast(e.message, "error");
+    } finally { setBusy(false); }
+  };
+
+  const showHistory = async (visit) => {
+    try { setHistory({ visit, events: (await api(`/api/visits/${visit.id}/history`)).events }); }
+    catch (e) { toast(e.message, "error"); }
   };
 
   const reissue = async (visit) => {
@@ -72,14 +92,14 @@ export default function Staff() {
   };
 
   const uploadLab = async () => {
-    if (!labForm.filename.trim()) return toast("Add a file name or attach a file");
+    if (!labForm.filename.trim()) return toast("Add a file name or attach a file", "error");
     const out = await run(() => api(`/api/visits/${labFor.id}/labs`, { method: "POST", body: labForm }), `Lab filed under ${labFor.label}`);
     if (out) { setShowLab(false); setLabForm({ filename: "", note: "", data: null }); }
   };
 
   const advance = (p) => {
-    const i = STATUSES.indexOf(p.status);
-    if (i < STATUSES.length - 1) update(p.id, { status: STATUSES[i + 1] });
+    const i = BOARD.indexOf(p.status);
+    if (i >= 0 && i < BOARD.length - 1) update(p.id, { status: BOARD[i + 1] });
   };
 
   const docName = (id) => doctors.find((d) => d.id === id)?.name;
@@ -104,17 +124,31 @@ export default function Staff() {
         ))}
       </div>
 
+      <div className="mt-6 mb-4 flex w-fit rounded-xl border border-hairline bg-paper p-1" role="tablist">
+        {[["queue", ListOrdered, "Today's queue"], ["appointments", CalendarDays, "Appointments"]].map(([t, Icon, label]) => (
+          <button key={t} role="tab" aria-selected={tab === t} onClick={() => setTab(t)}
+            className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-[13.5px] font-semibold ${tab === t ? "bg-ever-800 text-white" : "text-ink-soft hover:bg-porcelain"}`}>
+            <Icon className="h-4 w-4" /> {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "appointments" && (
+        <Appointments doctors={doctors} version={data}
+          onCheckedIn={(visit, out) => { setAccessFor({ visit, code: out.accessCode, expiresAt: out.accessExpiresAt }); refresh(); }} />
+      )}
+
       {/* patient list surface */}
-      <div className="surface mt-6 overflow-hidden">
+      {tab === "queue" && <div className="surface overflow-hidden">
         {/* toolbar */}
         <div className="flex flex-wrap items-center gap-3 border-b border-hairline p-4">
           <div className="relative min-w-[200px] flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-mute" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or token"
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by name or visit"
               aria-label="Search patients" className="field h-10 bg-porcelain pl-9" />
           </div>
           <div className="flex gap-1 overflow-x-auto rounded-xl bg-porcelain p-1">
-            {["All", ...STATUSES].map((s) => (
+            {FILTERS.map((s) => (
               <button key={s} onClick={() => setFilter(s)}
                 className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${
                   filter === s ? "bg-paper text-ink shadow-sm ring-1 ring-hairline" : "text-ink-mute hover:text-ink"}`}>
@@ -135,8 +169,8 @@ export default function Staff() {
 
         {/* board view */}
         {view === "board" && (
-          <div className="grid gap-4 bg-porcelain/50 p-4 md:grid-cols-2 xl:grid-cols-4">
-            {STATUSES.map((col) => {
+          <div className="grid gap-4 bg-porcelain/50 p-4 md:grid-cols-2 xl:grid-cols-5">
+            {BOARD.map((col) => {
               const cards = rows.filter((p) => p.status === col);
               return (
                 <div key={col}
@@ -164,7 +198,9 @@ export default function Staff() {
                             <span className="font-mono text-[12px] font-medium text-ever-800">{p.label}</span>
                           </div>
                           <p className="mt-2.5 truncate border-t border-hairline pt-2 text-[12px] text-ink-mute">{docName(p.doctorId)}</p>
-                          {col !== "Done" && (
+                          {p.queue && <p className="mt-1 text-[11.5px] font-medium text-ever-700">{queueText(p.queue)}</p>}
+                          {p.priority && <span className="badge mt-1.5 h-5 bg-rose-100 px-2 text-[11px] text-rose-600"><Flag className="h-3 w-3" /> Priority</span>}
+                          {col !== "Done" && BOARD.includes(p.status) && (
                             <button onClick={() => advance(p)}
                               className="btn btn-sm btn-secondary mt-2 h-7 text-[11.5px] md:hidden">
                               Move to next <ArrowRight className="h-3 w-3" />
@@ -173,7 +209,7 @@ export default function Staff() {
                         </motion.div>
                       ))}
                     </AnimatePresence>
-                    {cards.length === 0 && <p className="rounded-lg border border-dashed border-hairline px-2 py-4 text-center text-[12px] text-ink-mute">Drop a surface here</p>}
+                    {cards.length === 0 && <p className="rounded-lg border border-dashed border-hairline px-2 py-4 text-center text-[12px] text-ink-mute">Drop a card here</p>}
                   </div>
                 </div>
               );
@@ -184,19 +220,19 @@ export default function Staff() {
         {/* table */}
         {view === "table" && (
           <>
-            <div className="hidden grid-cols-[1.6fr_90px_1.3fr_150px_132px] gap-4 border-b border-hairline bg-porcelain/60 px-5 py-2.5 text-[12px] font-semibold text-ink-mute md:grid">
-              <span>Patient</span><span>Token</span><span>Assigned doctor</span><span>Status</span><span className="text-right">Actions</span>
+            <div className="hidden grid-cols-[1.5fr_80px_1.2fr_170px_170px] gap-4 border-b border-hairline bg-porcelain/60 px-5 py-2.5 text-[12px] font-semibold text-ink-mute md:grid">
+              <span>Patient</span><span>Visit</span><span>Assigned doctor</span><span>Status</span><span className="text-right">Actions</span>
             </div>
             <AnimatePresence initial={false}>
               {rows.map((p) => (
                 <motion.div key={p.id} layout
                   initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
                   transition={spring}
-                  className="grid grid-cols-2 items-center gap-3 border-b border-hairline px-5 py-3.5 last:border-0 hover:bg-porcelain/50 md:grid-cols-[1.6fr_90px_1.3fr_150px_132px] md:gap-4">
+                  className="grid grid-cols-2 items-center gap-3 border-b border-hairline px-5 py-3.5 last:border-0 hover:bg-porcelain/50 md:grid-cols-[1.5fr_80px_1.2fr_170px_170px] md:gap-4">
                   <div className="col-span-2 flex items-center gap-3 md:col-span-1">
                     <Avatar label={initials(p.name)} seed={p.id} />
                     <div className="min-w-0">
-                      <p className="truncate text-[14px] font-semibold">{p.name}</p>
+                      <p className="flex items-center gap-1.5 truncate text-[14px] font-semibold">{p.name}{p.priority && <Flag className="h-3.5 w-3.5 shrink-0 text-rose-600" aria-label="Priority" />}</p>
                       <p className="text-[12.5px] text-ink-mute">{p.age} yrs · {p.sex === "F" ? "Female" : p.sex === "M" ? "Male" : p.sex}</p>
                     </div>
                   </div>
@@ -214,8 +250,17 @@ export default function Staff() {
                       {STATUSES.map((s) => <option key={s}>{s}</option>)}
                     </select>
                     <svg className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 opacity-60" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="m3 4.5 3 3 3-3" /></svg>
+                    {p.queue && <span className="mt-1 block px-1 text-[11.5px] text-ink-mute">{queueText(p.queue)}</span>}
                   </label>
-                  <div className="col-span-2 flex justify-end gap-2 md:col-span-1">
+                  <div className="col-span-2 flex justify-end gap-1.5 md:col-span-1">
+                    <button onClick={() => update(p.id, { priority: !p.priority })} disabled={busy} aria-pressed={p.priority}
+                      aria-label={`${p.priority ? "Remove" : "Mark"} priority for ${p.label}`} title={p.priority ? "Remove priority" : "Mark as priority"}
+                      className={`btn btn-sm btn-secondary w-9 px-0 ${p.priority ? "border-rose-600/40 bg-rose-100 text-rose-600" : ""}`}>
+                      <Flag className="h-3.5 w-3.5" />
+                    </button>
+                    <button onClick={() => showHistory(p)} aria-label={`Status history for ${p.label}`} title="Status history" className="btn btn-sm btn-secondary w-9 px-0">
+                      <History className="h-3.5 w-3.5" />
+                    </button>
                     <button onClick={() => setAccessFor({ visit: p })} aria-label={`Patient access for ${p.label}`} title="Patient access code"
                       className={`btn btn-sm btn-secondary w-9 px-0 ${p.accessExpiresAt && p.accessExpiresAt > Date.now() ? "" : "text-rose-600"}`}>
                       <KeyRound className="h-3.5 w-3.5" />
@@ -237,42 +282,31 @@ export default function Staff() {
             )}
           </>
         )}
-      </div>
+      </div>}
 
       {/* register modal */}
       <Modal open={showReg} onClose={() => setShowReg(false)} title="Register patient"
         description="The name stays at reception. Doctors and the patient portal see only the visit label.">
         <div className="flex flex-col gap-4">
-          <div>
-            <label className="label" htmlFor="reg-name">Full name</label>
-            <input id="reg-name" autoFocus placeholder="e.g. R. Lakshmi" value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })} className="field" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label" htmlFor="reg-age">Age</label>
-              <input id="reg-age" type="number" min="0" placeholder="Years" value={form.age}
-                onChange={(e) => setForm({ ...form, age: e.target.value })} className="field" />
-            </div>
-            <div>
-              <label className="label" htmlFor="reg-sex">Sex</label>
-              <select id="reg-sex" value={form.sex} onChange={(e) => setForm({ ...form, sex: e.target.value })} className="field">
-                <option value="F">Female</option><option value="M">Male</option><option value="Other">Other</option>
-              </select>
-            </div>
-          </div>
+          <PatientPicker value={form.patient} duplicates={form.duplicates}
+            onChange={(patient) => setForm((f) => ({ ...f, patient, duplicates: patient.patientId ? null : f.duplicates }))}
+            onConfirmNew={() => register(true)} />
           <div>
             <label className="label" htmlFor="reg-doc">Assign doctor</label>
             <select id="reg-doc" value={form.doctorId || doctors[0]?.id || ""} onChange={(e) => setForm({ ...form, doctorId: e.target.value })} className="field">
               {doctors.map((d) => <option key={d.id} value={d.id}>{d.name} — {d.department}</option>)}
             </select>
           </div>
+          <label className="flex items-center gap-2.5 text-[13.5px] font-medium">
+            <input type="checkbox" checked={form.priority} onChange={(e) => setForm({ ...form, priority: e.target.checked })} className="h-4 w-4 accent-[var(--color-ever-800)]" />
+            Priority — move to the front of the doctor's queue
+          </label>
           <p className="rounded-lg bg-porcelain px-3 py-2.5 text-[12.5px] text-ink-mute">
-            Saving creates a visit and a one-time patient access code to hand to the patient.
+            Saving opens a visit in the doctor's queue and a one-time access code to hand to the patient.
           </p>
           <div className="flex justify-end gap-2 pt-1">
-            <button onClick={() => setShowReg(false)} className="btn btn-secondary">Cancel</button>
-            <button onClick={register} disabled={busy} className="btn btn-primary disabled:opacity-60">Register & issue code</button>
+            <button onClick={() => { setShowReg(false); setForm(EMPTY_FORM); }} className="btn btn-secondary">Cancel</button>
+            <button onClick={() => register(false)} disabled={busy} className="btn btn-primary disabled:opacity-60">Register & issue code</button>
           </div>
         </div>
       </Modal>
@@ -328,6 +362,21 @@ export default function Staff() {
               <button onClick={() => reissue(accessFor.visit)} disabled={busy} className="btn btn-primary disabled:opacity-60">Issue new code</button>
             </div>
           </div>
+        )}
+      </Modal>
+      <Modal open={!!history} onClose={() => setHistory(null)} title={`Status history · ${history?.visit.label || ""}`}>
+        {history && (
+          <ol className="flex flex-col gap-3">
+            {history.events.map((e, i) => (
+              <li key={i} className="flex items-start gap-3">
+                <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-ever-600" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13.5px] font-semibold">{e.from ? `${e.from} → ${e.to}` : `Registered · ${e.to}`}</p>
+                  <p className="text-[12px] text-ink-mute">{fmtDateTime(e.ts)}{e.by ? ` · ${e.by}` : ""}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
         )}
       </Modal>
     </Shell>

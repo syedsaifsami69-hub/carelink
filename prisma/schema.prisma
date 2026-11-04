@@ -17,7 +17,17 @@ enum VisitStatus {
   WAITING
   IN_CONSULT
   LABS_PENDING
+  FOLLOW_UP
   DONE
+  CANCELLED
+  NO_SHOW
+}
+
+enum AppointmentStatus {
+  BOOKED
+  CHECKED_IN
+  CANCELLED
+  NO_SHOW
 }
 
 enum Sender {
@@ -29,9 +39,11 @@ model Hospital {
   id        String    @id @default(uuid()) @db.Uuid
   name      String
   createdAt DateTime  @default(now())
-  users     User[]
-  patients  Patient[]
-  visits    Visit[]
+  users        User[]
+  patients     Patient[]
+  visits       Visit[]
+  appointments Appointment[]
+  auditLogs    AuditLog[]
 }
 
 model User {
@@ -46,6 +58,8 @@ model User {
   createdAt    DateTime  @default(now())
   sessions     Session[]
   visits       Visit[]   @relation("DoctorVisits")
+  appointments Appointment[] @relation("DoctorAppointments")
+  auditLogs    AuditLog[]
 
   @@index([hospitalId, role])
 }
@@ -57,10 +71,13 @@ model Patient {
   name       String
   age        Int
   sex        String
+  phone      String?
   createdAt  DateTime @default(now())
   visits     Visit[]
+  appointments Appointment[]
 
   @@index([hospitalId])
+  @@index([hospitalId, phone])
 }
 
 model Visit {
@@ -74,14 +91,74 @@ model Visit {
   // Short display label like A417. Not a credential: access needs a VisitAccess code.
   label      String
   status     VisitStatus   @default(WAITING)
+  // urgent visits jump the waiting queue; set by reception
+  priority   Boolean       @default(false)
+  checkedInAt      DateTime  @default(now())
+  consultStartedAt DateTime?
+  consultEndedAt   DateTime?
   createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @default(now()) @updatedAt
   messages   Message[]
   labs       LabReport[]
   accesses   VisitAccess[]
   sessions   Session[]
+  events     VisitStatusEvent[]
+  appointment Appointment?
 
   @@unique([hospitalId, label])
   @@index([hospitalId, doctorId])
+  @@index([hospitalId, status])
+}
+
+model VisitStatusEvent {
+  id          String       @id @default(uuid()) @db.Uuid
+  visitId     String       @db.Uuid
+  visit       Visit        @relation(fields: [visitId], references: [id])
+  fromStatus  VisitStatus?
+  toStatus    VisitStatus
+  actorUserId String?      @db.Uuid
+  createdAt   DateTime     @default(now())
+
+  @@index([visitId, createdAt])
+}
+
+model Appointment {
+  id          String            @id @default(uuid()) @db.Uuid
+  hospitalId  String            @db.Uuid
+  hospital    Hospital          @relation(fields: [hospitalId], references: [id])
+  patientId   String            @db.Uuid
+  patient     Patient           @relation(fields: [patientId], references: [id])
+  doctorId    String            @db.Uuid
+  doctor      User              @relation("DoctorAppointments", fields: [doctorId], references: [id])
+  startsAt    DateTime
+  endsAt      DateTime
+  status      AppointmentStatus @default(BOOKED)
+  note        String?
+  visitId     String?           @unique @db.Uuid
+  visit       Visit?            @relation(fields: [visitId], references: [id])
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @default(now()) @updatedAt
+
+  @@index([hospitalId, startsAt])
+  @@index([doctorId, startsAt])
+}
+
+// Who did what. Never stores message text or document contents.
+model AuditLog {
+  id           String    @id @default(uuid()) @db.Uuid
+  hospitalId   String?   @db.Uuid
+  hospital     Hospital? @relation(fields: [hospitalId], references: [id])
+  actorUserId  String?   @db.Uuid
+  actor        User?     @relation(fields: [actorUserId], references: [id])
+  actorVisitId String?   @db.Uuid
+  action       String
+  entityType   String?
+  entityId     String?
+  meta         Json?
+  ip           String?
+  createdAt    DateTime  @default(now())
+
+  @@index([hospitalId, createdAt])
 }
 
 // Patient-facing access code; only its SHA-256 hash is stored.

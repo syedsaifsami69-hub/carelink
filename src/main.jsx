@@ -7,6 +7,7 @@ import Login from "./pages/Login";
 import Staff from "./pages/Staff";
 import Doctor from "./pages/Doctor";
 import Patient from "./pages/Patient";
+import Audit from "./pages/Audit";
 import { ToastHost } from "./lib/Shell";
 import { SessionProvider, useSessionState, useSession, homeFor } from "./lib/store";
 
@@ -29,6 +30,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/staff" element={<StaffOnly roles={["ADMIN", "RECEPTIONIST"]}><Staff /></StaffOnly>} />
           <Route path="/doctor" element={<StaffOnly roles={["DOCTOR"]}><Doctor /></StaffOnly>} />
+          <Route path="/audit" element={<StaffOnly roles={["ADMIN"]}><Audit /></StaffOnly>} />
           <Route path="/patient" element={<Patient />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

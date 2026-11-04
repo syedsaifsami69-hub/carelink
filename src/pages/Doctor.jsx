@@ -2,7 +2,9 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Send, ChevronLeft, FlaskConical, MessagesSquare, FileText, Sparkles, Download } from "lucide-react";
 import { api, useWorkspace, fmtTime } from "../lib/store";
-import { Shell, spring, Avatar, StatusBadge, useToast } from "../lib/Shell";
+import { Shell, spring, Avatar, useToast, STATUS_TONE } from "../lib/Shell";
+
+const DOCTOR_STATUSES = ["In consult", "Labs pending", "Follow-up", "Done"];
 
 const SNIPPETS = [
   "Continue same medication. Review after 3 days.",
@@ -28,11 +30,18 @@ export default function Doctor() {
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [thread.length, active]);
 
+  const setStatus = async (status) => {
+    setSending(true);
+    try { await api(`/api/visits/${active}`, { method: "PATCH", body: { status } }); await refresh(); }
+    catch (e) { toast(e.message, "error"); }
+    finally { setSending(false); }
+  };
+
   const send = async () => {
     if (!draft.trim() || !active || sending) return;
     setSending(true);
     try { await api(`/api/visits/${active}/messages`, { method: "POST", body: { text: draft.trim() } }); setDraft(""); await refresh(); }
-    catch (e) { toast(e.message); }
+    catch (e) { toast(e.message, "error"); }
     finally { setSending(false); }
   };
 
@@ -67,7 +76,7 @@ export default function Doctor() {
                       <span className="font-mono text-[13.5px] font-semibold">#{p.label}</span>
                       <span className="text-[11.5px] text-ink-mute">{last ? fmtTime(last.ts) : ""}</span>
                     </div>
-                    <p className="text-[12px] text-ink-mute">{p.age} yrs · {p.sex} · {p.status}</p>
+                    <p className="text-[12px] text-ink-mute">{p.age} yrs · {p.sex} · {p.status}{p.queue ? ` · #${p.queue.position} in line` : ""}{p.priority ? " · Priority" : ""}</p>
                     <p className={`mt-1 truncate text-[13px] ${unread ? "font-semibold text-ink" : "text-ink-soft"}`}>
                       {last ? last.text : "No messages yet"}
                     </p>
@@ -103,7 +112,15 @@ export default function Doctor() {
                     <p className="font-mono text-[14.5px] font-semibold">Case #{activeLabel}</p>
                     <p className="text-[12.5px] text-ink-mute">{activePatient?.age} yrs · {activePatient?.sex}</p>
                   </div>
-                  {activePatient && <span className="hidden sm:inline-flex"><StatusBadge status={activePatient.status} /></span>}
+                  {activePatient && (
+                    <label>
+                      <span className="sr-only">Visit status</span>
+                      <select value={activePatient.status} disabled={sending} onChange={(e) => setStatus(e.target.value)}
+                        className={`h-8 cursor-pointer appearance-none rounded-full px-3 text-[12.5px] font-semibold outline-none ${STATUS_TONE[activePatient.status] || ""}`}>
+                        {[activePatient.status, ...DOCTOR_STATUSES.filter((s) => s !== activePatient.status)].map((s) => <option key={s}>{s}</option>)}
+                      </select>
+                    </label>
+                  )}
                 </div>
                 <button onClick={() => setShowLabs((v) => !v)} aria-expanded={showLabs}
                   className={`btn btn-sm ${showLabs ? "btn-primary" : "btn-secondary"}`}>

@@ -3,6 +3,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { authRoutes, sessionMiddleware } from "./auth.js";
 import { visitRoutes } from "./visits.js";
+import { patientRoutes } from "./patients.js";
+import { appointmentRoutes } from "./appointments.js";
+import { auditRoutes } from "./audit.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -25,7 +28,8 @@ export function createApp(db, { notify = () => {}, storageDir }) {
     catch { res.status(503).json({ ok: false }); }
   });
 
-  app.use("/api", sessionMiddleware(db), authRoutes(db), visitRoutes(db, { notify, storageDir }));
+  app.use("/api", sessionMiddleware(db), authRoutes(db), visitRoutes(db, { notify, storageDir }),
+    patientRoutes(db), appointmentRoutes(db, { notify }), auditRoutes(db));
   app.use("/api", (_req, res) => res.status(404).json({ error: "Not found" }));
 
   app.use(express.static(path.join(__dirname, "../dist")));

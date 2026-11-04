@@ -34,7 +34,7 @@ Password for all: `carelink-dev-2026` (override with `SEED_PASSWORD`). The seed 
 
 | Hospital | Email | Role |
 |---|---|---|
-| SLIMS Puducherry | admin@slims.dev | Administrator |
+| SLIMS Puducherry | admin@slims.dev | Administrator (reception + audit log) |
 | SLIMS Puducherry | reception@slims.dev | Reception |
 | SLIMS Puducherry | meera@slims.dev, arjun@slims.dev, sana@slims.dev | Doctors |
 | Harbour Clinic | reception@harbour.dev | Reception |
@@ -45,7 +45,7 @@ Password for all: `carelink-dev-2026` (override with `SEED_PASSWORD`). The seed 
 ```bash
 npm test
 ```
-Runs the API suite against the `carelink_test` database (created by both Postgres options above). It covers login, sessions, rate limiting, cross-hospital access, doctor scoping, patient codes (expiry, revocation, re-issue), lab upload validation and WebSocket isolation.
+Runs the API suite against the `carelink_test` database (created by both Postgres options above). It covers login, sessions, rate limiting, cross-hospital access, doctor scoping, patient codes (expiry, revocation, re-issue), lab upload validation, WebSocket isolation, duplicate detection, status history, queue order and estimates, appointment conflicts (including simultaneous bookings) and the audit log.
 
 ## How access works
 
@@ -69,23 +69,40 @@ Runs the API suite against the `carelink_test` database (created by both Postgre
 | POST | `/api/auth/login` · `/api/auth/logout` | staff |
 | GET | `/api/auth/me` | anyone signed in |
 | POST | `/api/patient/access` `{ code }` | patient |
-| GET | `/api/workspace` | data scoped to the caller's role |
-| POST | `/api/visits` | admin, reception |
-| PATCH | `/api/visits/:id` `{ status?, doctorId? }` | admin, reception |
+| GET | `/api/workspace` | open visits (and those closed in the last 24 h) scoped to the caller, with queue positions |
+| GET | `/api/patients?q=` | admin, reception (name or phone search) |
+| POST | `/api/visits` `{ patientId }` or `{ name, age, sex, phone?, confirmNew? }`, `doctorId`, `priority?` | admin, reception — `409` lists likely duplicates |
+| PATCH | `/api/visits/:id` `{ status?, doctorId?, priority? }` | admin, reception; assigned doctor may change status only |
+| GET | `/api/visits/:id/history` | staff who can see the visit |
 | POST · DELETE | `/api/visits/:id/access` | admin, reception (re-issue / revoke) |
 | POST | `/api/visits/:id/messages` | assigned doctor, the patient |
 | POST | `/api/visits/:id/labs` | admin, reception |
 | GET | `/api/labs/:id/download` | reception, assigned doctor, the patient |
+| GET | `/api/appointments?from=&to=` | staff (doctors: own, without names) |
+| POST | `/api/appointments` | admin, reception — `409` on overlap |
+| PATCH | `/api/appointments/:id` `{ startsAt?, durationMin?, status? }` | admin, reception (reschedule, Cancelled, No-show) |
+| POST | `/api/appointments/:id/check-in` | admin, reception — opens a visit and issues an access code |
+| GET | `/api/audit?before=` | admin |
 | GET | `/api/health` | public |
 
 ## Deploy
 
 `render.yaml` provisions the web service, a Postgres database and a persistent disk for uploads; see [DEPLOYMENT.md](DEPLOYMENT.md). Set `NODE_ENV=production`.
 
-## Known limits (milestone 1)
+## OPD workflow
+
+- **Patients** are one record per person per hospital; each visit hangs off it. Registering a new patient whose phone matches, or whose name (ignoring case, dots and spaces) and age (±1 year) match, returns the likely duplicates first.
+- **Statuses:** Waiting → In consult → Labs pending → Follow-up → Done, plus Cancelled and No-show. Every change is stored with who made it and when (`/history`).
+- **Queue:** waiting visits per doctor, priority first, then by check-in time. The wait estimate is (people ahead + anyone in consult) × that doctor's average consult length over the last 30 days, and is only shown once there are at least 3 finished consults. It is always labelled an estimate.
+- **Appointments** cannot overlap for the same doctor; the check runs in a serializable transaction so simultaneous bookings cannot both win. Check-in opens a queued visit.
+- **Audit log** (admins): sign-ins, failed sign-ins and code attempts, patient search, visit and appointment changes, access codes, lab uploads and downloads. It stores ids and counts only — no names, messages or file contents.
+
+## Known limits
 
 - Rate limits live in server memory: they reset on restart and do not work across multiple instances.
 - `/api/workspace` returns the caller's whole scope unpaginated.
 - Uploads travel as base64 JSON and are stored on local disk, not object storage.
-- No audit log, password reset, MFA, appointments or AI features yet; those are later milestones.
+- Audit entries are written just after each action, not inside its transaction, so a database failure at that moment can drop an entry (it is logged to the server console).
+- No password reset, MFA, staff/hospital admin screens, persistent notifications or AI features yet; those are later milestones.
+- Lifecycle steps and clinic working hours are fixed in code, not configurable per hospital.
 - This is not a certified medical system. DPDP Act, medical-confidentiality and ABDM requirements still need specialist review before use with real patients.

@@ -138,8 +138,11 @@ describe("doctor scope", () => {
     expect(visitByLabel("A417").messages).toBeUndefined();
   });
 
-  it("doctors cannot change visit status (reception task)", async () => {
-    expect((await meera.patch(`/api/visits/${visitByLabel("A417").id}`).send({ status: "Done" })).status).toBe(403);
+  it("doctors may set status on their own visits but cannot reassign, prioritise or touch others", async () => {
+    expect((await meera.patch(`/api/visits/${visitByLabel("A417").id}`).send({ doctorId: visitByLabel("K208").doctorId })).status).toBe(403);
+    expect((await meera.patch(`/api/visits/${visitByLabel("A417").id}`).send({ priority: true })).status).toBe(403);
+    expect((await meera.patch(`/api/visits/${visitByLabel("K208").id}`).send({ status: "Done" })).status).toBe(404);
+    expect((await meera.patch(`/api/visits/${visitByLabel("A417").id}`).send({ status: "Labs pending" })).status).toBe(200);
   });
 });
 
@@ -148,7 +151,7 @@ describe("patient access codes", () => {
 
   it("reception registers a patient and gets a one-time access code", async () => {
     const doctorId = (await slimsRec.get("/api/workspace")).body.doctors.find((d) => d.name.includes("Meera")).id;
-    const r = await slimsRec.post("/api/visits").send({ name: "Test Patient", age: 30, sex: "F", doctorId });
+    const r = await slimsRec.post("/api/visits").send({ name: "Test Patient", age: 30, sex: "F", doctorId, confirmNew: true });
     expect(r.status).toBe(201);
     expect(r.body.accessCode).toMatch(/^[0-9A-Z]{4}(-[0-9A-Z]{4}){3}$/);
     visit = r.body; code = r.body.accessCode;

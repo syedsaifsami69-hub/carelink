@@ -1,7 +1,7 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
-import { CheckCircle2, X, Sun, Moon, ClipboardList, Stethoscope, ShieldCheck, LogOut } from "lucide-react";
+import { CheckCircle2, AlertCircle, X, Sun, Moon, ClipboardList, Stethoscope, ShieldCheck, LogOut, ScrollText } from "lucide-react";
 import { useSession } from "./store";
 
 const spring = { type: "spring", stiffness: 400, damping: 32 };
@@ -43,7 +43,12 @@ export const STATUS_TONE = {
   "Waiting": "bg-marigold-100 text-marigold-600",
   "In consult": "bg-ever-100 text-ever-800",
   "Labs pending": "bg-sky-100 text-sky-700",
+  "Follow-up": "bg-celadon text-ever-900",
   "Done": "bg-porcelain text-ink-mute border border-hairline",
+  "Cancelled": "bg-porcelain text-ink-mute border border-hairline",
+  "No-show": "bg-rose-100 text-rose-600",
+  "Booked": "bg-ever-50 text-ever-800",
+  "Checked in": "bg-ever-100 text-ever-800",
 };
 export function StatusBadge({ status }) {
   return <span className={`badge badge-dot ${STATUS_TONE[status] || STATUS_TONE.Done}`}>{status}</span>;
@@ -67,10 +72,10 @@ export const useToast = () => useContext(ToastCtx);
 
 export function ToastHost({ children }) {
   const [toasts, setToasts] = useState([]);
-  const push = useCallback((msg) => {
+  const push = useCallback((msg, tone = "ok") => {
     const id = Date.now() + Math.random();
-    setToasts((t) => [...t, { id, msg }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), 3200);
+    setToasts((t) => [...t, { id, msg, tone }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), tone === "error" ? 6000 : 3200);
   }, []);
   return (
     <ToastCtx.Provider value={push}>
@@ -78,15 +83,15 @@ export function ToastHost({ children }) {
       <div className="pointer-events-none fixed bottom-5 right-5 z-50 flex w-[min(92vw,360px)] flex-col gap-2">
         <AnimatePresence>
           {toasts.map((t) => (
-            <motion.div key={t.id} role="status"
+            <motion.div key={t.id} role={t.tone === "error" ? "alert" : "status"}
               initial={{ opacity: 0, y: 16, scale: 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: 8 }}
               transition={spring}
               className="surface pointer-events-auto flex items-center gap-3 px-4 py-3 text-[13.5px] font-medium shadow-xl">
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ever-100">
-                <CheckCircle2 className="h-4 w-4 text-ever-700" />
-              </span>
+              {t.tone === "error"
+                ? <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-rose-100"><AlertCircle className="h-4 w-4 text-rose-600" /></span>
+                : <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-ever-100"><CheckCircle2 className="h-4 w-4 text-ever-700" /></span>}
               {t.msg}
             </motion.div>
           ))}
@@ -139,6 +144,7 @@ export function Modal({ open, onClose, title, description, children, wide }) {
 const TABS = [
   { to: "/staff", label: "Reception", icon: ClipboardList, hint: "Register & route", roles: ["ADMIN", "RECEPTIONIST"] },
   { to: "/doctor", label: "Consult room", icon: Stethoscope, hint: "Your cases", roles: ["DOCTOR"] },
+  { to: "/audit", label: "Audit log", icon: ScrollText, hint: "Who did what", roles: ["ADMIN"] },
 ];
 const ROLE_LABEL = { ADMIN: "Administrator", RECEPTIONIST: "Reception", DOCTOR: "Doctor" };
 

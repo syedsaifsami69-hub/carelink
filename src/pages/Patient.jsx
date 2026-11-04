@@ -78,7 +78,7 @@ function PatientVisit() {
     if (!draft.trim() || !patient || sending) return;
     setSending(true);
     try { await api(`/api/visits/${patient.id}/messages`, { method: "POST", body: { text: draft.trim() } }); setDraft(""); await refresh(); }
-    catch (e) { toast(e.message); }
+    catch (e) { toast(e.message, "error"); }
     finally { setSending(false); }
   };
 
@@ -134,6 +134,17 @@ function PatientVisit() {
 
         {/* side */}
         <div className="flex flex-col gap-5">
+          {patient?.queue && (
+            <div className="surface p-5" aria-live="polite">
+              <p className="eyebrow">Your place in line</p>
+              <p className="mt-2 font-display text-[34px] font-bold leading-none">#{patient.queue.position}</p>
+              <p className="mt-2 text-[13px] text-ink-soft">
+                {patient.queue.ahead === 0 ? "You're next." : `${patient.queue.ahead} ${patient.queue.ahead === 1 ? "person" : "people"} ahead of you.`}
+                {patient.queue.estimateMinutes > 0 && <> Estimated wait about <b>{patient.queue.estimateMinutes} min</b>.</>}
+              </p>
+              <p className="mt-2 text-[11.5px] text-ink-mute">Estimates are based on recent consultation times and may change. Urgent cases can be seen first.</p>
+            </div>
+          )}
           <div className="surface p-5">
             <p className="eyebrow">Visit</p>
             <dl className="mt-3 flex flex-col gap-2.5 text-[13.5px]">
