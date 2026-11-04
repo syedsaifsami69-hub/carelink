@@ -1,7 +1,8 @@
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "motion/react";
 import { createContext, useContext, useState, useCallback, useEffect } from "react";
-import { CheckCircle2, X, Sun, Moon, ClipboardList, Stethoscope, UserRound, ShieldCheck } from "lucide-react";
+import { CheckCircle2, X, Sun, Moon, ClipboardList, Stethoscope, ShieldCheck, LogOut } from "lucide-react";
+import { useSession } from "./store";
 
 const spring = { type: "spring", stiffness: 400, damping: 32 };
 
@@ -136,10 +137,10 @@ export function Modal({ open, onClose, title, description, children, wide }) {
 
 /* ---- app shell ---- */
 const TABS = [
-  { to: "/staff", label: "Reception", icon: ClipboardList, hint: "Register & route" },
-  { to: "/doctor", label: "Doctor", icon: Stethoscope, hint: "Consult threads" },
-  { to: "/patient", label: "Patient", icon: UserRound, hint: "Token portal" },
+  { to: "/staff", label: "Reception", icon: ClipboardList, hint: "Register & route", roles: ["ADMIN", "RECEPTIONIST"] },
+  { to: "/doctor", label: "Consult room", icon: Stethoscope, hint: "Your cases", roles: ["DOCTOR"] },
 ];
+const ROLE_LABEL = { ADMIN: "Administrator", RECEPTIONIST: "Reception", DOCTOR: "Doctor" };
 
 function LiveDot({ online }) {
   return (
@@ -148,13 +149,23 @@ function LiveDot({ online }) {
         {online && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-ever-500 opacity-60" />}
         <span className={`relative inline-flex h-2 w-2 rounded-full ${online ? "bg-ever-500" : "bg-ink-mute"}`} />
       </span>
-      {online ? "Live sync" : "Demo mode"}
+      {online ? "Live" : "Reconnecting…"}
     </span>
   );
 }
 
 export function Shell({ title, sub, actions, children, online }) {
   const [dark, toggle] = useTheme();
+  const { me, logout } = useSession();
+  const nav = useNavigate();
+  const signOut = async () => { await logout(); nav(me?.kind === "patient" ? "/patient" : "/login"); };
+  const tabs = me?.kind === "staff" ? TABS.filter((t) => t.roles.includes(me.user.role)) : [];
+  const SignOutBtn = (
+    <button onClick={signOut} aria-label="Sign out" title="Sign out"
+      className="grid h-9 w-9 place-items-center rounded-lg border border-hairline bg-paper text-ink-soft hover:text-ink">
+      <LogOut className="h-4 w-4" />
+    </button>
+  );
   const ThemeBtn = (
     <button onClick={toggle} aria-label="Toggle theme"
       className="grid h-9 w-9 place-items-center rounded-lg border border-hairline bg-paper text-ink-soft hover:text-ink">
@@ -167,9 +178,10 @@ export function Shell({ title, sub, actions, children, online }) {
       {/* sidebar (desktop) */}
       <aside className="sticky top-0 hidden h-screen flex-col border-r border-hairline bg-paper px-4 py-5 lg:flex">
         <Link to="/" className="px-2"><Logo /></Link>
-        <p className="eyebrow mt-8 px-2">Workspaces</p>
+        {me?.kind === "staff" && <p className="mt-6 truncate px-2 text-[13px] font-semibold text-ink-soft">{me.hospital.name}</p>}
+        {tabs.length > 0 && <p className="eyebrow mt-6 px-2">Workspace</p>}
         <nav className="mt-2 flex flex-col gap-1">
-          {TABS.map((t) => (
+          {tabs.map((t) => (
             <NavLink key={t.to} to={t.to}
               className={({ isActive }) =>
                 `group relative flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${
@@ -194,11 +206,20 @@ export function Shell({ title, sub, actions, children, online }) {
             <div className="flex items-center gap-2 text-[13px] font-semibold">
               <ShieldCheck className="h-4 w-4 text-ever-700" /> Identity protected
             </div>
-            <p className="mt-1 text-[12px] leading-relaxed text-ink-mute">Names stay at reception. Every other screen sees tokens only.</p>
+            <p className="mt-1 text-[12px] leading-relaxed text-ink-mute">Names stay with reception. Doctors and patients see visit labels only.</p>
           </div>
-          <div className="flex items-center justify-between px-1">
+          {me?.kind === "staff" && (
+            <div className="flex items-center gap-2.5 px-1">
+              <Avatar label={initials(me.user.name)} seed={me.user.id} size={34} />
+              <div className="min-w-0 flex-1 leading-tight">
+                <p className="truncate text-[13.5px] font-semibold">{me.user.name}</p>
+                <p className="text-[12px] text-ink-mute">{ROLE_LABEL[me.user.role]}</p>
+              </div>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-2 px-1">
             <LiveDot online={online} />
-            {ThemeBtn}
+            <span className="flex gap-2">{ThemeBtn}{me && SignOutBtn}</span>
           </div>
         </div>
       </aside>
@@ -208,17 +229,17 @@ export function Shell({ title, sub, actions, children, online }) {
         <header className="sticky top-0 z-30 border-b border-hairline bg-paper/85 backdrop-blur-md lg:hidden">
           <div className="flex items-center justify-between gap-3 px-4 py-3">
             <Link to="/"><Logo size={28} /></Link>
-            {ThemeBtn}
+            <span className="flex gap-2">{ThemeBtn}{me && SignOutBtn}</span>
           </div>
-          <nav className="flex gap-1 overflow-x-auto px-3 pb-2">
-            {TABS.map((t) => (
+          {tabs.length > 1 && <nav className="flex gap-1 overflow-x-auto px-3 pb-2">
+            {tabs.map((t) => (
               <NavLink key={t.to} to={t.to}
                 className={({ isActive }) => `inline-flex items-center gap-2 whitespace-nowrap rounded-lg px-3 py-1.5 text-[13px] font-semibold ${
                   isActive ? "bg-ever-800 text-white" : "text-ink-soft hover:bg-porcelain"}`}>
                 <t.icon className="h-4 w-4" /> {t.label}
               </NavLink>
             ))}
-          </nav>
+          </nav>}
         </header>
 
         <main className="mx-auto max-w-[1180px] px-4 py-6 sm:px-6 lg:px-10 lg:py-9">

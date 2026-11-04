@@ -1,8 +1,8 @@
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Send, ChevronLeft, FlaskConical, MessagesSquare, FileText, Sparkles } from "lucide-react";
-import { useStore, fmtTime, DOCTORS } from "../lib/store";
-import { Shell, spring, Avatar, initials, StatusBadge } from "../lib/Shell";
+import { Send, ChevronLeft, FlaskConical, MessagesSquare, FileText, Sparkles, Download } from "lucide-react";
+import { api, useWorkspace, fmtTime } from "../lib/store";
+import { Shell, spring, Avatar, StatusBadge, useToast } from "../lib/Shell";
 
 const SNIPPETS = [
   "Continue same medication. Review after 3 days.",
@@ -12,39 +12,33 @@ const SNIPPETS = [
 ];
 
 export default function Doctor() {
-  const store = useStore();
-  const [me, setMe] = useState("d1");
-  const [active, setActive] = useState(null);
+  const { data, online, refresh, error } = useWorkspace();
+  const toast = useToast();
+  const [active, setActive] = useState(null); // visit id
   const [draft, setDraft] = useState("");
   const [showLabs, setShowLabs] = useState(false);
+  const [sending, setSending] = useState(false);
   const endRef = useRef(null);
 
-  const myPatients = useMemo(() => store.patients.filter((p) => p.doctorId === me), [store.patients, me]);
-  const activePatient = store.patients.find((p) => p.token === active);
-  const thread = active ? store.threads[active] || [] : [];
-  const labs = useMemo(() => store.labs.filter((l) => l.token === active), [store.labs, active]);
-  const doc = DOCTORS.find((d) => d.id === me);
+  const myPatients = data?.visits || [];
+  const activePatient = myPatients.find((p) => p.id === active);
+  const activeLabel = activePatient?.label;
+  const thread = activePatient?.messages || [];
+  const labs = activePatient?.labs || [];
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [thread.length, active]);
 
   const send = async () => {
-    if (!draft.trim() || !active) return;
-    await store.sendMessage(active, "doctor", draft.trim());
-    setDraft("");
+    if (!draft.trim() || !active || sending) return;
+    setSending(true);
+    try { await api(`/api/visits/${active}/messages`, { method: "POST", body: { text: draft.trim() } }); setDraft(""); await refresh(); }
+    catch (e) { toast(e.message); }
+    finally { setSending(false); }
   };
 
   return (
-    <Shell title="Consult room" sub="Cases arrive as tokens. The person stays a person, not a headline." online={store.online}
-      actions={
-        <label className="flex items-center gap-2.5">
-          <Avatar label={initials(doc?.name)} seed={me} size={34} />
-          <span className="sr-only">Signed in as</span>
-          <select value={me} onChange={(e) => { setMe(e.target.value); setActive(null); }}
-            className="field h-10 w-auto min-w-[210px] font-semibold">
-            {DOCTORS.map((d) => <option key={d.id} value={d.id}>{d.name} · {d.dept}</option>)}
-          </select>
-        </label>
-      }>
+    <Shell title="Consult room" sub="Cases arrive as visit labels. The person stays a person, not a headline." online={online}>
+      {error && <p role="alert" className="mb-4 rounded-lg bg-rose-100 px-4 py-3 text-[13.5px] font-medium text-rose-600">Couldn't load your cases: {error.message}</p>}
       <div className="surface grid h-[calc(100vh-230px)] min-h-[540px] min-w-0 overflow-hidden lg:grid-cols-[320px_1fr]">
         {/* inbox */}
         <div className={`flex min-h-0 min-w-0 flex-col border-hairline lg:border-r ${active ? "hidden lg:flex" : "flex"}`}>
@@ -60,17 +54,17 @@ export default function Doctor() {
               <p className="px-4 py-10 text-center text-[13px] text-ink-mute">No cases assigned yet. Reception routes them here.</p>
             )}
             {myPatients.map((p) => {
-              const t = store.threads[p.token] || [];
+              const t = p.messages;
               const last = t[t.length - 1];
               const unread = last?.from === "patient";
-              const on = active === p.token;
+              const on = active === p.id;
               return (
-                <button key={p.token} onClick={() => setActive(p.token)}
+                <button key={p.id} onClick={() => setActive(p.id)}
                   className={`flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition-colors ${on ? "bg-ever-50" : "hover:bg-porcelain"}`}>
-                  <Avatar label={p.token.slice(0, 1)} seed={p.token} size={38} />
+                  <Avatar label={p.label.slice(0, 1)} seed={p.id} size={38} />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-mono text-[13.5px] font-semibold">#{p.token}</span>
+                      <span className="font-mono text-[13.5px] font-semibold">#{p.label}</span>
                       <span className="text-[11.5px] text-ink-mute">{last ? fmtTime(last.ts) : ""}</span>
                     </div>
                     <p className="text-[12px] text-ink-mute">{p.age} yrs · {p.sex} · {p.status}</p>
@@ -104,9 +98,9 @@ export default function Doctor() {
                   <button onClick={() => setActive(null)} className="btn btn-sm btn-ghost -ml-2 w-8 px-0 lg:hidden" aria-label="Back to inbox">
                     <ChevronLeft className="h-5 w-5" />
                   </button>
-                  <Avatar label={active.slice(0, 1)} seed={active} size={38} />
+                  <Avatar label={activeLabel?.slice(0, 1)} seed={active} size={38} />
                   <div className="min-w-0 leading-tight">
-                    <p className="font-mono text-[14.5px] font-semibold">Case #{active}</p>
+                    <p className="font-mono text-[14.5px] font-semibold">Case #{activeLabel}</p>
                     <p className="text-[12.5px] text-ink-mute">{activePatient?.age} yrs · {activePatient?.sex}</p>
                   </div>
                   {activePatient && <span className="hidden sm:inline-flex"><StatusBadge status={activePatient.status} /></span>}
@@ -133,6 +127,9 @@ export default function Doctor() {
                             {l.note && <p className="truncate text-[12px] text-ink-mute">{l.note}</p>}
                           </div>
                           <span className="text-[12px] text-ink-mute">{fmtTime(l.ts)}</span>
+                          {l.stored
+                            ? <a href={`/api/labs/${l.id}/download`} aria-label={`Download ${l.filename}`} className="btn btn-sm btn-secondary w-9 px-0"><Download className="h-4 w-4" /></a>
+                            : <span className="text-[11.5px] text-ink-mute">Paper copy</span>}
                         </div>
                       ))}
                     </div>
@@ -150,7 +147,7 @@ export default function Doctor() {
                         mine ? "rounded-2xl rounded-br-md bg-ever-800 text-white" : "rounded-2xl rounded-bl-md border border-hairline bg-paper"}`}>
                         {m.text}
                       </div>
-                      <p className={`mt-1 px-1 text-[11px] text-ink-mute ${mine ? "text-right" : ""}`}>{mine ? "You" : `#${active}`} · {fmtTime(m.ts)}</p>
+                      <p className={`mt-1 px-1 text-[11px] text-ink-mute ${mine ? "text-right" : ""}`}>{mine ? "You" : `#${activeLabel}`} · {fmtTime(m.ts)}</p>
                     </motion.div>
                   );
                 })}
@@ -174,9 +171,9 @@ export default function Doctor() {
                 <div className="flex items-center gap-2">
                   <input value={draft} onChange={(e) => setDraft(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && send()}
-                    placeholder={`Reply to #${active}`} aria-label="Reply"
+                    placeholder={`Reply to #${activeLabel}`} aria-label="Reply"
                     className="field h-11 bg-porcelain" />
-                  <button onClick={send} aria-label="Send" disabled={!draft.trim()}
+                  <button onClick={send} aria-label="Send" disabled={!draft.trim() || sending}
                     className="btn btn-primary h-11 w-11 shrink-0 px-0 disabled:opacity-50"><Send className="h-4 w-4" /></button>
                 </div>
               </div>

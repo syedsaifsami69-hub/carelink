@@ -51,14 +51,14 @@ Render makes deployment easy using the included `render.yaml` Blueprint file.
 1. Create a free account at [Render.com](https://render.com).
 2. From the Render Dashboard, click **New +** (top right) and select **Blueprint**.
 3. Link your GitHub account and select your `carelink` repository.
-4. Render will read the `render.yaml` configuration file and automatically set up the service:
-   - **Name**: `carelink`
-   - **Runtime**: `Node`
-   - **Build Command**: `npm install && npm run build`
-   - **Start Command**: `node server/index.js`
-   - **Environment Variables**: `PORT=3001`, `NODE_ENV=production`
-5. Click **Apply** to start the build and deployment.
-6. Once the build finishes, Render will provide a public URL (e.g., `https://carelink.onrender.com`).
+4. Render will read the `render.yaml` configuration file and automatically set up:
+   - **Web service** `carelink`: build `npm install && npm run build && npx prisma migrate deploy`, start `node server/index.js`, health check `/api/health`
+   - **Postgres database** `carelink-db`, wired in as `DATABASE_URL`
+   - **Persistent disk** mounted at `/var/data` for uploaded lab files (`STORAGE_DIR=/var/data/storage`). Disks need a paid instance; without one, uploads are lost on every deploy.
+   - `NODE_ENV=production`, which makes cookies `Secure` and blocks the demo seed
+5. Do **not** run `npm run db:seed` in production. Create the first hospital and staff accounts with a one-off script or `npx prisma studio` until an admin onboarding screen exists.
+6. Click **Apply** to start the build and deployment.
+7. Once the build finishes, Render will provide a public URL (e.g., `https://carelink.onrender.com`).
 
 ---
 
@@ -69,7 +69,7 @@ Railway is another excellent choice with fast build times and direct GitHub inte
 1. Sign up/log in to [Railway.app](https://railway.app).
 2. Click **New Project** and select **Deploy from GitHub repo**.
 3. Select your `carelink` repository.
-4. Railway will automatically detect the Node.js project and deploy it.
+4. Add a **PostgreSQL** plugin and set `DATABASE_URL` from it, plus `NODE_ENV=production`. Set the build command to `npm install && npm run build && npx prisma migrate deploy` and the start command to `node server/index.js`. Attach a volume and point `STORAGE_DIR` at it for uploads.
 5. Once deployed, go to the **Settings** tab of the service, locate the **Networking** section, and click **Generate Domain** to get a public URL.
 
 ---

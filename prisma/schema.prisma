@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  RECEPTIONIST
+  DOCTOR
+}
+
+enum VisitStatus {
+  WAITING
+  IN_CONSULT
+  LABS_PENDING
+  DONE
+}
+
+enum Sender {
+  PATIENT
+  DOCTOR
+}
+
+model Hospital {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String
+  createdAt DateTime  @default(now())
+  users     User[]
+  patients  Patient[]
+  visits    Visit[]
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  hospitalId   String    @db.Uuid
+  hospital     Hospital  @relation(fields: [hospitalId], references: [id])
+  email        String    @unique
+  passwordHash String
+  name         String
+  role         Role
+  department   String?
+  createdAt    DateTime  @default(now())
+  sessions     Session[]
+  visits       Visit[]   @relation("DoctorVisits")
+
+  @@index([hospitalId, role])
+}
+
+model Patient {
+  id         String   @id @default(uuid()) @db.Uuid
+  hospitalId String   @db.Uuid
+  hospital   Hospital @relation(fields: [hospitalId], references: [id])
+  name       String
+  age        Int
+  sex        String
+  createdAt  DateTime @default(now())
+  visits     Visit[]
+
+  @@index([hospitalId])
+}
+
+model Visit {
+  id         String        @id @default(uuid()) @db.Uuid
+  hospitalId String        @db.Uuid
+  hospital   Hospital      @relation(fields: [hospitalId], references: [id])
+  patientId  String        @db.Uuid
+  patient    Patient       @relation(fields: [patientId], references: [id])
+  doctorId   String        @db.Uuid
+  doctor     User          @relation("DoctorVisits", fields: [doctorId], references: [id])
+  // Short display label like A417. Not a credential: access needs a VisitAccess code.
+  label      String
+  status     VisitStatus   @default(WAITING)
+  createdAt  DateTime      @default(now())
+  messages   Message[]
+  labs       LabReport[]
+  accesses   VisitAccess[]
+  sessions   Session[]
+
+  @@unique([hospitalId, label])
+  @@index([hospitalId, doctorId])
+}
+
+// Patient-facing access code; only its SHA-256 hash is stored.
+model VisitAccess {
+  id        String    @id @default(uuid()) @db.Uuid
+  visitId   String    @db.Uuid
+  visit     Visit     @relation(fields: [visitId], references: [id])
+  codeHash  String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([visitId])
+}
+
+// Staff sessions have userId; patient sessions have visitId. Only the token hash is stored.
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  tokenHash String   @unique
+  userId    String?  @db.Uuid
+  user      User?    @relation(fields: [userId], references: [id])
+  visitId   String?  @db.Uuid
+  visit     Visit?   @relation(fields: [visitId], references: [id])
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Message {
+  id        String   @id @default(uuid()) @db.Uuid
+  visitId   String   @db.Uuid
+  visit     Visit    @relation(fields: [visitId], references: [id])
+  sender    Sender
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([visitId, createdAt])
+}
+
+model LabReport {
+  id          String   @id @default(uuid()) @db.Uuid
+  visitId     String   @db.Uuid
+  visit       Visit    @relation(fields: [visitId], references: [id])
+  filename    String
+  note        String?
+  mime        String?
+  sizeBytes   Int?
+  // Path relative to STORAGE_DIR; null when only a paper copy exists.
+  storageKey  String?
+  createdAt   DateTime @default(now())
+
+  @@index([visitId])
+}

@@ -1,18 +1,91 @@
-# CareLink — Anonymous care messaging
+# CareLink — pseudonymous OPD messaging
 
-Full-stack demo: React (Vite + HeroUI + Motion + Tailwind 4) + Node (Express + WebSocket).
+Patients message their doctor under a visit label (like `A417`). Reception holds the patient's name; doctors and the patient portal never receive it from the server. Multiple hospitals share one deployment with their data kept apart.
 
-## Run
+Stack: React 19 + Vite + Tailwind 4 (frontend) · Express 5 + `ws` (backend) · PostgreSQL + Prisma 6.
+
+## Run locally
+
+Requires Node 22+.
+
+1. Install and configure:
+   ```bash
+   npm install
+   cp .env.example .env
+   ```
+2. Start Postgres, either way:
+   - **No Docker** (works on Windows without WSL), in its own terminal: `npm run db:local`
+   - **Docker**: `docker compose up -d db`
+3. Create the schema and demo data:
+   ```bash
+   npx prisma migrate deploy
+   npm run db:seed
+   ```
+   The seed prints the staff password and a one-time patient access code for each demo visit. Codes are stored only as hashes, so copy them now, or issue new ones from the reception desk later.
+4. Start the app (builds the frontend, applies migrations, serves on http://localhost:3001):
+   ```bash
+   npm start
+   ```
+   For hot reload use `npm run server` and `npm run dev` in two terminals.
+
+### Demo accounts (development seed only)
+
+Password for all: `carelink-dev-2026` (override with `SEED_PASSWORD`). The seed refuses to run when `NODE_ENV=production`.
+
+| Hospital | Email | Role |
+|---|---|---|
+| SLIMS Puducherry | admin@slims.dev | Administrator |
+| SLIMS Puducherry | reception@slims.dev | Reception |
+| SLIMS Puducherry | meera@slims.dev, arjun@slims.dev, sana@slims.dev | Doctors |
+| Harbour Clinic | reception@harbour.dev | Reception |
+| Harbour Clinic | doctor@harbour.dev | Doctor |
+
+## Tests
+
 ```bash
-npm install
-npm start        # builds and serves everything on http://localhost:3001
+npm test
 ```
-Dev mode: `npm run server` in one terminal, `npm run dev` in another (Vite proxies /api and /ws).
+Runs the API suite against the `carelink_test` database (created by both Postgres options above). It covers login, sessions, rate limiting, cross-hospital access, doctor scoping, patient codes (expiry, revocation, re-issue), lab upload validation and WebSocket isolation.
 
-## Routes
-- `/` landing · `#/staff` reception · `#/doctor` consult room · `#/patient` token gate (demo tokens: A417, K208, M551)
+## How access works
 
-## Design system — "Evergreen Ledger"
-Evergreen #0E5F4C · Marigold #E8A33D · Porcelain #F4F6F3 · Ink #161A18.
-Type: Bricolage Grotesque / Figtree / Spline Sans Mono. Dark mode via CSS-variable flipping (`.dark`).
-Animations: spring-based, transform+opacity only, <300ms, hover guarded by `@media (hover:hover)`, reduced-motion respected.
+| Who | Signs in with | Can see |
+|---|---|---|
+| Admin / reception | email + password | their hospital's visits, with names; no message content |
+| Doctor | email + password | only visits assigned to them, without names; messages and labs |
+| Patient | 16-character access code from reception | only their own visit |
+
+- Sessions are random tokens in an `HttpOnly`, `SameSite=Lax` cookie (`Secure` in production). Only their SHA-256 hash is stored. Staff sessions last 12 hours, patient sessions 2 hours.
+- Patient access codes carry 80 bits of randomness and are stored as hashes. They expire after `PATIENT_ACCESS_TTL_HOURS` (default 72), are cut to `PATIENT_ACCESS_AFTER_DONE_HOURS` (default 24) once a visit is marked Done, and reception can revoke or re-issue them at any time; revoking also ends any open patient session.
+- Every API route checks the session, the hospital and the role on the server. Records from another hospital or another doctor answer `404`, so their existence is not confirmed.
+- WebSocket connections are authenticated from the session cookie and only receive "update" pings for records that user may see. Clients then re-fetch through the API.
+- Lab files are accepted only as PDF, PNG or JPEG (checked by file content), up to 10 MB, and stored outside the web root under `STORAGE_DIR`.
+- Logins and patient code attempts are limited to 10 per 15 minutes per client.
+
+## API
+
+| Method | Route | Who |
+|---|---|---|
+| POST | `/api/auth/login` · `/api/auth/logout` | staff |
+| GET | `/api/auth/me` | anyone signed in |
+| POST | `/api/patient/access` `{ code }` | patient |
+| GET | `/api/workspace` | data scoped to the caller's role |
+| POST | `/api/visits` | admin, reception |
+| PATCH | `/api/visits/:id` `{ status?, doctorId? }` | admin, reception |
+| POST · DELETE | `/api/visits/:id/access` | admin, reception (re-issue / revoke) |
+| POST | `/api/visits/:id/messages` | assigned doctor, the patient |
+| POST | `/api/visits/:id/labs` | admin, reception |
+| GET | `/api/labs/:id/download` | reception, assigned doctor, the patient |
+| GET | `/api/health` | public |
+
+## Deploy
+
+`render.yaml` provisions the web service, a Postgres database and a persistent disk for uploads; see [DEPLOYMENT.md](DEPLOYMENT.md). Set `NODE_ENV=production`.
+
+## Known limits (milestone 1)
+
+- Rate limits live in server memory: they reset on restart and do not work across multiple instances.
+- `/api/workspace` returns the caller's whole scope unpaginated.
+- Uploads travel as base64 JSON and are stored on local disk, not object storage.
+- No audit log, password reset, MFA, appointments or AI features yet; those are later milestones.
+- This is not a certified medical system. DPDP Act, medical-confidentiality and ABDM requirements still need specialist review before use with real patients.

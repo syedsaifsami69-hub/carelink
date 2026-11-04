@@ -123,16 +123,16 @@ const inView = (i = 0) => ({
 const PORTALS = [
   { to: "/staff", icon: ClipboardList, name: "Reception & staff", desc: "Register patients, issue tokens, assign doctors and file lab reports.", points: ["Live queue board", "One-click lab upload"], accent: "bg-marigold-100 text-marigold-600" },
   { to: "/doctor", icon: Stethoscope, name: "Doctor", desc: "Answer cases by token with quick replies and every lab file in context.", points: ["Unified case inbox", "Reply snippets"], accent: "bg-ever-100 text-ever-800" },
-  { to: "/patient", icon: UserRound, name: "Patient", desc: "Message your doctor and download reports with nothing but your token.", points: ["No sign-up needed", "Reports on your phone"], accent: "bg-sky-100 text-sky-700" },
+  { to: "/patient", icon: UserRound, name: "Patient", desc: "Message your doctor and download reports with the access code from reception.", points: ["No sign-up needed", "Reports on your phone"], accent: "bg-sky-100 text-sky-700" },
 ];
 
 const FEATURES = [
-  { icon: EyeOff, t: "No names on the wire", d: "Identity is written once at the front desk. Messages, files and the queue only ever carry a token." },
-  { icon: Zap, t: "Real-time by default", d: "Replies, status changes and new reports sync instantly across every screen over WebSocket." },
-  { icon: FlaskConical, t: "Labs as files", d: "Reports are attached to the token, readable by the treating doctor and downloadable by the patient." },
-  { icon: KeyRound, t: "Tokens expire with the visit", d: "A four-character token is all a patient needs, and it stops working once the visit is closed." },
+  { icon: EyeOff, t: "Pseudonymous by design", d: "Names are written once at the front desk. The server never sends them to doctors or patients' screens." },
+  { icon: Zap, t: "Real-time by default", d: "Replies, status changes and new reports appear on the right screens as they happen, and only there." },
+  { icon: FlaskConical, t: "Labs as files", d: "PDF and image reports are checked by content, stored privately and downloadable only by those allowed." },
+  { icon: KeyRound, t: "Codes expire with the visit", d: "Access codes expire, can be revoked by reception, and stop working shortly after the visit is closed." },
   { icon: Smartphone, t: "Built for any screen", d: "Reception desktops, doctors' tablets and patients' phones all get a layout made for them." },
-  { icon: ShieldCheck, t: "Privacy without friction", d: "No apps to install, no accounts to create. Fewer barriers means more patients ask the question." },
+  { icon: ShieldCheck, t: "Privacy without friction", d: "Patients need no app and no account. Staff sign in; every permission is checked on the server." },
 ];
 
 export default function Landing() {
@@ -152,7 +152,7 @@ export default function Landing() {
             <button onClick={toggle} aria-label="Toggle theme" className="btn btn-sm btn-ghost w-9 px-0">
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
-            <Link to="/staff" className="btn btn-sm btn-secondary hidden sm:inline-flex">Staff sign-in</Link>
+            <Link to="/login" className="btn btn-sm btn-secondary hidden sm:inline-flex">Staff sign-in</Link>
             <Link to="/patient" className="btn btn-sm btn-primary">Patient portal</Link>
           </div>
         </div>
@@ -165,7 +165,7 @@ export default function Landing() {
           <div>
             <motion.p variants={fade} initial="hidden" animate="show" custom={0}
               className="badge mb-6 h-8 border border-ever-100 bg-paper px-3 text-ever-800 shadow-sm">
-              <ShieldCheck className="h-3.5 w-3.5" /> Anonymous care messaging for OPDs
+              <ShieldCheck className="h-3.5 w-3.5" /> Pseudonymous care messaging for OPDs
             </motion.p>
             <motion.h1 variants={fade} initial="hidden" animate="show" custom={1}
               className="font-display text-[clamp(2.5rem,5.6vw,4.25rem)] font-extrabold leading-[1.04] tracking-[-0.035em] text-ink">
@@ -174,14 +174,14 @@ export default function Landing() {
             </motion.h1>
             <motion.p variants={fade} initial="hidden" animate="show" custom={2}
               className="mt-6 max-w-[520px] text-[17px] leading-relaxed text-ink-soft">
-              CareLink relays every message through a reception-issued token. Doctors see the case,
-              labs travel as files, and your identity stays in one place: the front desk.
+              CareLink relays every message through a reception-issued visit code. Doctors see the case,
+              labs travel as files, and your name stays in one place: the front desk.
             </motion.p>
             <motion.div variants={fade} initial="hidden" animate="show" custom={3} className="mt-9 flex flex-wrap items-center gap-3">
               <Link to="/patient" className="btn btn-lg btn-primary group">
                 Open patient portal <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
               </Link>
-              <Link to="/staff" className="btn btn-lg btn-secondary">I work here</Link>
+              <Link to="/login" className="btn btn-lg btn-secondary">I work here</Link>
             </motion.div>
             <motion.ul variants={fade} initial="hidden" animate="show" custom={4}
               className="mt-10 flex flex-wrap gap-x-6 gap-y-2 text-[13.5px] text-ink-soft">
@@ -202,8 +202,8 @@ export default function Landing() {
       <section className="border-y border-hairline bg-paper">
         <div className="mx-auto grid max-w-6xl grid-cols-2 divide-hairline px-5 md:grid-cols-4 md:divide-x">
           {[
-            ["0", "names sent to doctors"], ["4 chars", "is all a patient needs"],
-            ["< 1 s", "message delivery"], ["3", "roles, one shared record"],
+            ["0", "patient names shown to doctors"], ["80-bit", "patient access codes"],
+            ["72 h", "default code lifetime"], ["3", "roles, one shared record"],
           ].map(([v, l], i) => (
             <motion.div key={l} {...inView(i)} className="px-4 py-8 text-center md:py-10">
               <p className="font-display text-[30px] font-extrabold tracking-tight text-ever-800">{v}</p>
@@ -222,9 +222,9 @@ export default function Landing() {
         <div className="relative mt-14 grid gap-6 md:grid-cols-3">
           <div className="absolute left-[16%] right-[16%] top-7 hidden h-px bg-gradient-to-r from-transparent via-hairline to-transparent md:block" />
           {[
-            { t: "Reception issues a token", d: "The patient's name is written once, in the reception register. They leave with a token like A417.", i: ClipboardList },
-            { t: "The token does the talking", d: "Messages, follow-ups and photos travel under the token. The doctor answers the case, not the person.", i: Send },
-            { t: "Labs land in the file", d: "Reports are uploaded against the token, readable by the doctor and downloadable by the patient.", i: FlaskConical },
+            { t: "Reception issues a token", d: "The patient's name is written once, at reception. They leave with a private access code for this visit.", i: ClipboardList },
+            { t: "The visit does the talking", d: "Messages and follow-ups travel under a visit label like A417. The doctor answers the case, not the person.", i: Send },
+            { t: "Labs land in the file", d: "Reports are filed to the visit, readable by the assigned doctor and downloadable by the patient.", i: FlaskConical },
           ].map((s, i) => (
             <motion.div key={s.t} {...inView(i)} className="relative text-center">
               <div className="relative mx-auto grid h-14 w-14 place-items-center rounded-2xl border border-hairline bg-paper shadow-sm">
@@ -248,7 +248,7 @@ export default function Landing() {
               <p className="mt-4 max-w-md text-[15.5px] leading-relaxed text-ink-soft">
                 Designed around the realities of a busy outpatient department: shared screens, crowded corridors and sensitive questions.
               </p>
-              <Link to="/staff" className="btn btn-primary mt-7">Try the reception desk <ArrowRight className="h-4 w-4" /></Link>
+              <Link to="/login" className="btn btn-primary mt-7">Staff sign-in <ArrowRight className="h-4 w-4" /></Link>
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               {FEATURES.map((f, i) => (
@@ -300,11 +300,11 @@ export default function Landing() {
         <motion.div {...inView()} className="relative overflow-hidden rounded-3xl bg-ever-900 px-8 py-14 text-center sm:px-14">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(50%_80%_at_80%_0%,rgba(242,147,125,0.55),transparent_70%),radial-gradient(40%_60%_at_0%_100%,rgba(246,185,138,0.35),transparent_70%)]" />
           <div className="relative">
-            <h2 className="font-display text-[clamp(1.8rem,3.4vw,2.5rem)] font-bold text-white">Have a token from reception?</h2>
+            <h2 className="font-display text-[clamp(1.8rem,3.4vw,2.5rem)] font-bold text-white">Have an access code from reception?</h2>
             <p className="mx-auto mt-3 max-w-md text-[15.5px] text-white/80">Open your file, message your doctor and collect your reports in under a minute.</p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
-              <Link to="/patient" className="btn btn-lg bg-white text-ever-900 hover:bg-ever-50">Enter my token <ArrowRight className="h-4 w-4" /></Link>
-              <Link to="/doctor" className="btn btn-lg border border-white/20 text-white hover:bg-white/10">Doctor login</Link>
+              <Link to="/patient" className="btn btn-lg bg-white text-ever-900 hover:bg-ever-50">Enter my code <ArrowRight className="h-4 w-4" /></Link>
+              <Link to="/login" className="btn btn-lg border border-white/20 text-white hover:bg-white/10">Staff sign-in</Link>
             </div>
           </div>
         </motion.div>
@@ -315,7 +315,7 @@ export default function Landing() {
         <div className="mx-auto grid max-w-6xl gap-10 px-5 py-14 md:grid-cols-[1.4fr_1fr_1fr]">
           <div>
             <Logo />
-            <p className="mt-4 max-w-xs text-[14px] leading-relaxed text-ink-mute">Anonymous, token-based messaging between patients, reception and doctors.</p>
+            <p className="mt-4 max-w-xs text-[14px] leading-relaxed text-ink-mute">Pseudonymous messaging between patients, reception and doctors.</p>
           </div>
           <div>
             <p className="eyebrow">Portals</p>
