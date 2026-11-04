@@ -1,9 +1,8 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Button } from "@heroui/react";
-import { Send, Download, KeyRound, LogOut, FlaskConical } from "lucide-react";
+import { Send, Download, KeyRound, LogOut, FlaskConical, FileText, ShieldCheck, ArrowRight, Lock } from "lucide-react";
 import { useStore, fmtTime, DOCTORS } from "../lib/store";
-import { Shell, useToast, spring } from "../lib/Shell";
+import { Shell, useToast, spring, Avatar, initials, StatusBadge } from "../lib/Shell";
 
 export default function Patient() {
   const store = useStore();
@@ -13,19 +12,16 @@ export default function Patient() {
   const [draft, setDraft] = useState("");
   const endRef = useRef(null);
 
-  const patient = useMemo(
-    () => store.patients.find((p) => p.token === entered),
-    [store.patients, entered]
-  );
+  const patient = useMemo(() => store.patients.find((p) => p.token === entered), [store.patients, entered]);
   const thread = entered ? store.threads[entered] || [] : [];
   const labs = useMemo(() => store.labs.filter((l) => l.token === entered), [store.labs, entered]);
   const doctor = DOCTORS.find((d) => d.id === patient?.doctorId);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [thread.length]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [thread.length]);
 
   const enter = () => {
     const t = token.trim().toUpperCase();
-    if (store.patients.some((p) => p.token === t)) { setEntered(t); }
+    if (store.patients.some((p) => p.token === t)) setEntered(t);
     else toast("Token not found — check the slip from reception (try A417)");
   };
 
@@ -39,93 +35,135 @@ export default function Patient() {
     return (
       <Shell title="Patient portal" sub="Everything here runs on your token — never your name." online={store.online}>
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={spring}
-          className="mx-auto max-w-sm rounded-2xl border border-hairline bg-paper p-6 text-center">
-          <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-ever-100">
-            <KeyRound className="h-5 w-5 text-ever-800" />
+          className="surface mx-auto grid max-w-3xl overflow-hidden md:grid-cols-2">
+          <div className="relative hidden flex-col justify-between overflow-hidden bg-ever-900 p-8 text-white md:flex">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_60%_at_100%_0%,rgba(34,163,131,0.5),transparent_70%)]" />
+            <div className="relative">
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-white/10 ring-1 ring-white/15"><ShieldCheck className="h-5 w-5" /></span>
+              <h2 className="mt-6 font-display text-[22px] font-bold leading-snug">Your care, without your name on it.</h2>
+            </div>
+            <ul className="relative flex flex-col gap-3 text-[13.5px] text-white/80">
+              {["Message your doctor directly", "Download lab reports", "Nothing to install or sign up for"].map((x) => (
+                <li key={x} className="flex items-center gap-2.5"><Lock className="h-3.5 w-3.5 opacity-70" />{x}</li>
+              ))}
+            </ul>
           </div>
-          <h2 className="mt-4 font-display text-xl font-bold">Enter your token</h2>
-          <p className="mt-1.5 text-[13px] text-ink-soft">It's on the slip reception gave you — one letter, three digits.</p>
-          <input value={token} onChange={(e) => setToken(e.target.value.toUpperCase())}
-            onKeyDown={(e) => e.key === "Enter" && enter()}
-            placeholder="A417" maxLength={4}
-            className="mt-4 w-full rounded-xl border border-hairline bg-porcelain px-3 py-3 text-center font-mono text-lg tracking-[0.3em] outline-none focus:border-ever-600" />
-          <Button onPress={enter} fullWidth className="mt-3 rounded-xl bg-ever-800 text-ever-50">Open my file</Button>
-          <p className="mt-3 font-mono text-[10.5px] text-ink-mute">DEMO TOKENS: A417 · K208 · M551</p>
+          <div className="p-8">
+            <span className="grid h-11 w-11 place-items-center rounded-xl bg-ever-100"><KeyRound className="h-5 w-5 text-ever-800" /></span>
+            <h2 className="mt-5 font-display text-[22px] font-bold">Enter your token</h2>
+            <p className="mt-1.5 text-[14px] text-ink-soft">It's printed on the slip reception gave you: one letter and three digits.</p>
+            <label className="label mt-6" htmlFor="token">Visit token</label>
+            <input id="token" value={token} onChange={(e) => setToken(e.target.value.toUpperCase())}
+              onKeyDown={(e) => e.key === "Enter" && enter()}
+              placeholder="A417" maxLength={4} autoComplete="off"
+              className="field h-14 text-center font-mono text-[22px] font-medium tracking-[0.4em]" />
+            <button onClick={enter} className="btn btn-lg btn-primary mt-4 w-full">Open my file <ArrowRight className="h-4 w-4" /></button>
+            <div className="mt-4 flex items-center justify-center gap-2 text-[12.5px] text-ink-mute">
+              Demo tokens:
+              {["A417", "K208", "M551"].map((t) => (
+                <button key={t} onClick={() => setToken(t)}
+                  className="rounded-md bg-ever-50 px-2 py-0.5 font-mono font-medium text-ever-800 hover:bg-ever-100">
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
         </motion.div>
       </Shell>
     );
   }
 
   return (
-    <Shell title={`Token #${entered}`} sub={doctor ? `Your doctor: ${doctor.name} · ${doctor.dept}` : ""} online={store.online}>
-      <div className="mb-4 flex items-center justify-between">
-        <span className={`rounded-full px-3 py-1 text-[12px] font-semibold ${
-          patient?.status === "Done" ? "bg-porcelain border border-hairline text-ink-mute" : "bg-marigold-100 text-marigold-600"}`}>
-          Visit status: {patient?.status}
-        </span>
-        <button onClick={() => { setEntered(null); setToken(""); }}
-          className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-ink-mute hover:text-ink">
-          <LogOut className="h-3.5 w-3.5" /> Exit
+    <Shell title={`Token #${entered}`} sub="Only your doctor can read this thread." online={store.online}
+      actions={
+        <button onClick={() => { setEntered(null); setToken(""); }} className="btn btn-secondary">
+          <LogOut className="h-4 w-4" /> Exit
         </button>
-      </div>
-
-      <div className="grid gap-4 lg:grid-cols-[1fr_280px]">
+      }>
+      <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
         {/* thread */}
-        <div className="flex min-h-[440px] flex-col rounded-2xl border border-hairline bg-paper">
-          <div className="border-b border-hairline px-4 py-3 font-mono text-[10.5px] tracking-wide text-ink-mute">
-            YOUR THREAD · ONLY YOUR DOCTOR READS THIS
+        <div className="surface flex h-[calc(100vh-230px)] min-h-[480px] flex-col overflow-hidden">
+          <div className="flex items-center justify-between gap-3 border-b border-hairline px-5 py-3.5">
+            <div className="flex items-center gap-3">
+              <Avatar label={initials(doctor?.name)} seed={doctor?.id} size={38} />
+              <div className="leading-tight">
+                <p className="text-[14.5px] font-semibold">{doctor?.name || "Your doctor"}</p>
+                <p className="text-[12.5px] text-ink-mute">{doctor?.dept}</p>
+              </div>
+            </div>
+            {patient && <StatusBadge status={patient.status} />}
           </div>
-          <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
-            {thread.map((m, i) => (
-              <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring}
-                className={`max-w-[80%] ${m.from === "patient" ? "self-end" : "self-start"}`}>
-                <div className={`rounded-xl px-3.5 py-2.5 text-[13.5px] leading-relaxed ${
-                  m.from === "patient" ? "bg-ever-800 text-ever-50" : "border border-hairline bg-porcelain"}`}>
-                  {m.text}
-                </div>
-                <p className={`mt-0.5 px-1 font-mono text-[10px] text-ink-mute ${m.from === "patient" ? "text-right" : ""}`}>{fmtTime(m.ts)}</p>
-              </motion.div>
-            ))}
+          <div className="scroll-thin flex flex-1 flex-col gap-3 overflow-y-auto bg-porcelain/40 p-5">
+            {thread.map((m, i) => {
+              const mine = m.from === "patient";
+              return (
+                <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring}
+                  className={`max-w-[78%] ${mine ? "self-end" : "self-start"}`}>
+                  <div className={`px-4 py-2.5 text-[14px] leading-relaxed shadow-sm ${
+                    mine ? "rounded-2xl rounded-br-md bg-ever-800 text-white" : "rounded-2xl rounded-bl-md border border-hairline bg-paper"}`}>
+                    {m.text}
+                  </div>
+                  <p className={`mt-1 px-1 text-[11px] text-ink-mute ${mine ? "text-right" : ""}`}>{mine ? "You" : "Doctor"} · {fmtTime(m.ts)}</p>
+                </motion.div>
+              );
+            })}
             {thread.length === 0 && (
-              <p className="m-auto text-center text-[13px] text-ink-mute">No messages yet. Describe how you're feeling — your doctor will reply here.</p>
+              <p className="m-auto max-w-xs text-center text-[13.5px] text-ink-mute">No messages yet. Describe how you're feeling and your doctor will reply here.</p>
             )}
             <div ref={endRef} />
           </div>
-          <div className="flex items-center gap-2 p-3">
+          <div className="flex items-center gap-2 border-t border-hairline bg-paper p-3">
             <input value={draft} onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && send()}
-              placeholder="Message your doctor"
-              className="flex-1 rounded-xl border border-hairline bg-porcelain px-3.5 py-2.5 text-[13.5px] outline-none focus:border-ever-600" />
-            <Button isIconOnly onPress={send} aria-label="Send"
-              className="rounded-xl bg-ever-800 text-ever-50"><Send className="h-4 w-4" /></Button>
+              placeholder="Message your doctor" aria-label="Message"
+              className="field h-11 bg-porcelain" />
+            <button onClick={send} aria-label="Send" disabled={!draft.trim()}
+              className="btn btn-primary h-11 w-11 shrink-0 px-0 disabled:opacity-50"><Send className="h-4 w-4" /></button>
           </div>
         </div>
 
-        {/* labs */}
-        <div className="rounded-2xl border border-hairline bg-paper">
-          <div className="flex items-center gap-2 border-b border-hairline px-4 py-3">
-            <FlaskConical className="h-4 w-4 text-ever-700" />
-            <span className="font-mono text-[10.5px] tracking-wide text-ink-mute">MY REPORTS</span>
+        {/* side */}
+        <div className="flex flex-col gap-5">
+          <div className="surface p-5">
+            <p className="eyebrow">Visit</p>
+            <dl className="mt-3 flex flex-col gap-2.5 text-[13.5px]">
+              <div className="flex justify-between"><dt className="text-ink-mute">Token</dt><dd className="font-mono font-semibold">{entered}</dd></div>
+              <div className="flex justify-between"><dt className="text-ink-mute">Department</dt><dd className="font-medium">{doctor?.dept}</dd></div>
+              <div className="flex items-center justify-between"><dt className="text-ink-mute">Status</dt><dd>{patient && <StatusBadge status={patient.status} />}</dd></div>
+            </dl>
           </div>
-          {labs.length === 0 ? (
-            <p className="px-4 py-8 text-center text-[12.5px] text-ink-mute">Reports uploaded by the lab will appear here, filed to your token.</p>
-          ) : (
-            <AnimatePresence initial={false}>
-              {labs.map((l) => (
-                <motion.div key={l.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring}
-                  className="flex items-center justify-between border-b border-hairline px-4 py-3 last:border-0">
-                  <div className="min-w-0">
-                    <p className="truncate font-mono text-[12.5px] font-medium">{l.filename}</p>
-                    <p className="text-[11px] text-ink-mute">{fmtTime(l.ts)}{l.note ? ` · ${l.note}` : ""}</p>
-                  </div>
-                  <button onClick={() => { store.downloadLab(l) ? toast(`Downloading ${l.filename}`) : toast("This entry has no stored file \u2014 collect it at the lab counter"); }} aria-label="Download"
-                    className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-hairline bg-porcelain text-ink-soft hover:border-ever-600">
-                    <Download className="h-3.5 w-3.5" />
-                  </button>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          )}
+
+          <div className="surface overflow-hidden">
+            <div className="flex items-center justify-between border-b border-hairline px-5 py-3.5">
+              <div className="flex items-center gap-2">
+                <FlaskConical className="h-4 w-4 text-ever-700" />
+                <span className="text-[14px] font-bold">My reports</span>
+              </div>
+              <span className="badge h-5 bg-porcelain px-2 text-[11px] text-ink-mute">{labs.length}</span>
+            </div>
+            {labs.length === 0 ? (
+              <p className="px-5 py-10 text-center text-[13px] text-ink-mute">Reports uploaded by the lab will appear here, filed to your token.</p>
+            ) : (
+              <div className="flex flex-col p-2">
+                <AnimatePresence initial={false}>
+                  {labs.map((l) => (
+                    <motion.div key={l.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring}
+                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-porcelain">
+                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sky-100"><FileText className="h-4 w-4 text-sky-700" /></span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13.5px] font-semibold">{l.filename}</p>
+                        <p className="truncate text-[12px] text-ink-mute">{fmtTime(l.ts)}{l.note ? ` · ${l.note}` : ""}</p>
+                      </div>
+                      <button onClick={() => { store.downloadLab(l) ? toast(`Downloading ${l.filename}`) : toast("This entry has no stored file — collect it at the lab counter"); }}
+                        aria-label={`Download ${l.filename}`} className="btn btn-sm btn-secondary w-9 px-0">
+                        <Download className="h-4 w-4" />
+                      </button>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </Shell>

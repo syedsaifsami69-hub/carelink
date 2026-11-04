@@ -1,4 +1,3 @@
-@import "@fontsource-variable/bricolage-grotesque";
 @import "@fontsource-variable/figtree";
 @import "@fontsource/spline-sans-mono/400.css";
 @import "@fontsource/spline-sans-mono/500.css";
@@ -7,29 +6,34 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --color-ever-950: #0a2e25;
-  --color-ever-900: #0c473a;
+  --color-ever-950: #072820;
+  --color-ever-900: #0a4034;
   --color-ever-800: #0e5f4c;
-  --color-ever-700: #14735d;
-  --color-ever-600: #1e8a70;
-  --color-ever-500: #2ba184;
-  --color-ever-100: #dcefe7;
-  --color-ever-50: #eef7f2;
+  --color-ever-700: #12715b;
+  --color-ever-600: #178a6e;
+  --color-ever-500: #22a383;
+  --color-ever-100: #d9f0e6;
+  --color-ever-50: #eef8f3;
 
-  --color-ink: #161a18;
-  --color-ink-soft: #3d4642;
-  --color-ink-mute: #6b7570;
+  --color-ink: #0f1714;
+  --color-ink-soft: #46524d;
+  --color-ink-mute: #75817b;
 
-  --color-porcelain: #f4f6f3;
-  --color-paper: #fbfcfa;
-  --color-celadon: #cfe3da;
-  --color-hairline: #dfe6e1;
+  --color-porcelain: #f5f7f6;
+  --color-paper: #ffffff;
+  --color-celadon: #d6e9e0;
+  --color-hairline: #e3e8e5;
 
-  --color-marigold-600: #d18a1f;
+  --color-marigold-600: #b9740f;
   --color-marigold-500: #e8a33d;
-  --color-marigold-100: #faecd3;
+  --color-marigold-100: #fcf0dc;
 
-  --font-display: "Bricolage Grotesque Variable", ui-sans-serif, system-ui, sans-serif;
+  --color-rose-600: #c2413a;
+  --color-rose-100: #fbe6e4;
+  --color-sky-700: #2463a6;
+  --color-sky-100: #e3eefa;
+
+  --font-display: "Figtree Variable", ui-sans-serif, system-ui, sans-serif;
   --font-body: "Figtree Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "Spline Sans Mono", ui-monospace, monospace;
 }
@@ -40,10 +44,83 @@ body {
   background: var(--color-porcelain);
   color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: "ss01", "cv11";
 }
 
-.font-display { font-family: var(--font-display); }
+.font-display { font-family: var(--font-display); letter-spacing: -0.02em; }
 .font-mono { font-family: var(--font-mono); }
+
+/* ---------- primitives (in components layer so utilities can override) ---------- */
+@layer components {
+.surface {
+  background: var(--color-paper);
+  border: 1px solid var(--color-hairline);
+  border-radius: 16px;
+  box-shadow: 0 1px 2px rgba(15, 23, 20, 0.04), 0 1px 1px rgba(15, 23, 20, 0.02);
+}
+.surface-hover { transition: box-shadow 200ms ease, border-color 200ms ease, transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+@media (hover: hover) {
+  .surface-hover:hover {
+    border-color: color-mix(in oklab, var(--color-ever-600) 30%, var(--color-hairline));
+    box-shadow: 0 12px 32px -12px rgba(14, 95, 76, 0.22);
+    transform: translateY(-2px);
+  }
+}
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  height: 40px; padding: 0 16px; border-radius: 10px;
+  font-size: 14px; font-weight: 600; white-space: nowrap;
+  transition: background 150ms ease, border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+}
+.btn:active { transform: scale(0.98); }
+.btn-sm { height: 34px; padding: 0 12px; font-size: 13px; border-radius: 9px; }
+.btn-lg { height: 48px; padding: 0 22px; font-size: 15px; border-radius: 12px; }
+.btn-primary {
+  background: var(--color-ever-800); color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.12), 0 1px 2px rgba(7, 40, 32, 0.3);
+}
+.btn-primary:hover { background: var(--color-ever-700); }
+.btn-secondary { background: var(--color-paper); color: var(--color-ink); border: 1px solid var(--color-hairline); }
+.btn-secondary:hover { border-color: color-mix(in oklab, var(--color-ink) 20%, var(--color-hairline)); background: var(--color-porcelain); }
+.btn-ghost { color: var(--color-ink-soft); }
+.btn-ghost:hover { background: var(--color-porcelain); color: var(--color-ink); }
+
+.field {
+  width: 100%; height: 42px; padding: 0 12px; border-radius: 10px;
+  border: 1px solid var(--color-hairline); background: var(--color-paper);
+  font-size: 14px; color: var(--color-ink); outline: none;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+textarea.field { height: auto; padding: 10px 12px; resize: vertical; }
+.field::placeholder { color: var(--color-ink-mute); }
+.field:focus { border-color: var(--color-ever-600); box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-ever-600) 18%, transparent); }
+.label { display: block; margin-bottom: 6px; font-size: 13px; font-weight: 600; color: var(--color-ink-soft); }
+
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-ink-mute); }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 24px; padding: 0 9px; border-radius: 999px;
+  font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+.badge-dot::before { content: ""; width: 6px; height: 6px; border-radius: 999px; background: currentColor; }
+
+.hero-bg {
+  background:
+    radial-gradient(60% 50% at 85% 10%, color-mix(in oklab, var(--color-ever-500) 16%, transparent), transparent 70%),
+    radial-gradient(50% 40% at 0% 30%, color-mix(in oklab, var(--color-marigold-500) 10%, transparent), transparent 70%),
+    var(--color-porcelain);
+}
+.grid-bg {
+  background-image:
+    linear-gradient(to right, color-mix(in oklab, var(--color-ink) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklab, var(--color-ink) 6%, transparent) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(70% 60% at 50% 0%, #000 30%, transparent 80%);
+}
+
+}
 
 .redact {
   background: repeating-linear-gradient(90deg, var(--color-ink) 0 6px, var(--color-ink-soft) 6px 10px);
@@ -52,34 +129,34 @@ body {
   user-select: none;
 }
 
+.scroll-thin { scrollbar-width: thin; scrollbar-color: var(--color-hairline) transparent; }
+
 ::selection { background: var(--color-celadon); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
 
-@media (hover: hover) {
-  .lift { transition: transform 200ms cubic-bezier(0.2, 0.8, 0.2, 1); }
-  .lift:hover { transform: translateY(-3px); }
-}
-
 :focus-visible { outline: 2px solid var(--color-ever-600); outline-offset: 2px; }
 
 /* ---- dark theme: flip the semantic tokens ---- */
 .dark {
-  --color-porcelain: #101512;
-  --color-paper: #171d19;
-  --color-ink: #e9f0ea;
-  --color-ink-soft: #b4c0b8;
-  --color-ink-mute: #7d8a81;
-  --color-hairline: #26302a;
-  --color-celadon: #1e3229;
-  --color-ever-50: #14231c;
-  --color-ever-100: #1a3128;
-  --color-marigold-100: #33270f;
+  --color-porcelain: #0c110f;
+  --color-paper: #131a17;
+  --color-ink: #e8efeb;
+  --color-ink-soft: #b0bcb5;
+  --color-ink-mute: #7a8780;
+  --color-hairline: #232d29;
+  --color-celadon: #1b2e26;
+  --color-ever-50: #12211b;
+  --color-ever-100: #173027;
+  --color-marigold-100: #2e230f;
+  --color-rose-100: #33191a;
+  --color-sky-100: #14233a;
   color-scheme: dark;
 }
 .dark body { background: var(--color-porcelain); }
-.dark .redact {
-  background: repeating-linear-gradient(90deg, #e9f0ea 0 6px, #b4c0b8 6px 10px);
-}
+.dark .surface { box-shadow: none; }
+.dark .text-ever-900, .dark .text-ever-800, .dark .text-ever-700 { color: var(--color-ever-500); }
+.dark .text-marigold-600 { color: var(--color-marigold-500); }
+.dark .redact { background: repeating-linear-gradient(90deg, #e8efeb 0 6px, #b0bcb5 6px 10px); }

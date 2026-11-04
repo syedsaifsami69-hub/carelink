@@ -1,9 +1,8 @@
 import { useMemo, useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Button } from "@heroui/react";
-import { Send, FileText, ChevronLeft, FlaskConical } from "lucide-react";
+import { Send, ChevronLeft, FlaskConical, MessagesSquare, FileText, Sparkles } from "lucide-react";
 import { useStore, fmtTime, DOCTORS } from "../lib/store";
-import { Shell, useToast, spring } from "../lib/Shell";
+import { Shell, spring, Avatar, initials, StatusBadge } from "../lib/Shell";
 
 const SNIPPETS = [
   "Continue same medication. Review after 3 days.",
@@ -14,21 +13,19 @@ const SNIPPETS = [
 
 export default function Doctor() {
   const store = useStore();
-  const toast = useToast();
   const [me, setMe] = useState("d1");
   const [active, setActive] = useState(null);
   const [draft, setDraft] = useState("");
   const [showLabs, setShowLabs] = useState(false);
   const endRef = useRef(null);
 
-  const myPatients = useMemo(
-    () => store.patients.filter((p) => p.doctorId === me),
-    [store.patients, me]
-  );
+  const myPatients = useMemo(() => store.patients.filter((p) => p.doctorId === me), [store.patients, me]);
+  const activePatient = store.patients.find((p) => p.token === active);
   const thread = active ? store.threads[active] || [] : [];
   const labs = useMemo(() => store.labs.filter((l) => l.token === active), [store.labs, active]);
+  const doc = DOCTORS.find((d) => d.id === me);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [thread.length, active]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }, [thread.length, active]);
 
   const send = async () => {
     if (!draft.trim() || !active) return;
@@ -37,71 +34,86 @@ export default function Doctor() {
   };
 
   return (
-    <Shell title="Consult room" sub="Cases arrive as tokens. The person stays a person, not a headline." online={store.online}>
-      {/* doctor switcher */}
-      <div className="mb-4 flex gap-1.5 overflow-x-auto">
-        {DOCTORS.map((d) => (
-          <button key={d.id} onClick={() => { setMe(d.id); setActive(null); }}
-            className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold ${
-              me === d.id ? "bg-ever-800 text-ever-50" : "border border-hairline bg-paper text-ink-soft"}`}>
-            {d.name}
-          </button>
-        ))}
-      </div>
-
-      <div className="grid min-w-0 gap-4 lg:grid-cols-[300px_1fr]">
+    <Shell title="Consult room" sub="Cases arrive as tokens. The person stays a person, not a headline." online={store.online}
+      actions={
+        <label className="flex items-center gap-2.5">
+          <Avatar label={initials(doc?.name)} seed={me} size={34} />
+          <span className="sr-only">Signed in as</span>
+          <select value={me} onChange={(e) => { setMe(e.target.value); setActive(null); }}
+            className="field h-10 w-auto min-w-[210px] font-semibold">
+            {DOCTORS.map((d) => <option key={d.id} value={d.id}>{d.name} · {d.dept}</option>)}
+          </select>
+        </label>
+      }>
+      <div className="surface grid h-[calc(100vh-230px)] min-h-[540px] min-w-0 overflow-hidden lg:grid-cols-[320px_1fr]">
         {/* inbox */}
-        <div className={`min-w-0 rounded-2xl border border-hairline bg-paper ${active ? "hidden lg:block" : ""}`}>
-          <div className="border-b border-hairline px-4 py-3 font-mono text-[10.5px] tracking-wide text-ink-mute">
-            INBOX · {myPatients.length} {myPatients.length === 1 ? "CASE" : "CASES"}
+        <div className={`flex min-h-0 min-w-0 flex-col border-hairline lg:border-r ${active ? "hidden lg:flex" : "flex"}`}>
+          <div className="flex items-center justify-between border-b border-hairline px-5 py-4">
+            <div>
+              <p className="text-[15px] font-bold">Inbox</p>
+              <p className="text-[12.5px] text-ink-mute">{myPatients.length} {myPatients.length === 1 ? "case" : "cases"} assigned</p>
+            </div>
+            <span className="grid h-8 w-8 place-items-center rounded-lg bg-ever-50"><MessagesSquare className="h-4 w-4 text-ever-700" /></span>
           </div>
-          {myPatients.length === 0 && (
-            <p className="px-4 py-8 text-center text-[13px] text-ink-mute">No cases assigned yet. Reception routes them here.</p>
-          )}
-          {myPatients.map((p) => {
-            const t = store.threads[p.token] || [];
-            const last = t[t.length - 1];
-            const unread = last?.from === "patient";
-            return (
-              <button key={p.token} onClick={() => setActive(p.token)}
-                className={`block w-full border-b border-hairline px-4 py-3 text-left last:border-0 ${
-                  active === p.token ? "bg-ever-50" : "hover:bg-porcelain"}`}>
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-[13px] font-medium text-ever-800">#{p.token}</span>
-                  <div className="flex items-center gap-2">
-                    {unread && <span className="h-2 w-2 rounded-full bg-marigold-500" />}
-                    <span className="text-[11px] text-ink-mute">{p.age}{p.sex} · {p.status}</span>
+          <div className="scroll-thin flex-1 overflow-y-auto p-2">
+            {myPatients.length === 0 && (
+              <p className="px-4 py-10 text-center text-[13px] text-ink-mute">No cases assigned yet. Reception routes them here.</p>
+            )}
+            {myPatients.map((p) => {
+              const t = store.threads[p.token] || [];
+              const last = t[t.length - 1];
+              const unread = last?.from === "patient";
+              const on = active === p.token;
+              return (
+                <button key={p.token} onClick={() => setActive(p.token)}
+                  className={`flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition-colors ${on ? "bg-ever-50" : "hover:bg-porcelain"}`}>
+                  <Avatar label={p.token.slice(0, 1)} seed={p.token} size={38} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-[13.5px] font-semibold">#{p.token}</span>
+                      <span className="text-[11.5px] text-ink-mute">{last ? fmtTime(last.ts) : ""}</span>
+                    </div>
+                    <p className="text-[12px] text-ink-mute">{p.age} yrs · {p.sex} · {p.status}</p>
+                    <p className={`mt-1 truncate text-[13px] ${unread ? "font-semibold text-ink" : "text-ink-soft"}`}>
+                      {last ? last.text : "No messages yet"}
+                    </p>
                   </div>
-                </div>
-                <p className="mt-1 truncate text-[12.5px] text-ink-soft">
-                  {last ? last.text : "No messages yet"}
-                </p>
-              </button>
-            );
-          })}
+                  {unread && <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-marigold-500" aria-label="Unread" />}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* chat pane */}
-        <div className={`flex min-h-[480px] min-w-0 flex-col overflow-hidden rounded-2xl border border-hairline bg-paper ${!active ? "hidden lg:flex" : ""}`}>
+        <div className={`min-h-0 min-w-0 flex-col ${!active ? "hidden lg:flex" : "flex"}`}>
           {!active ? (
-            <div className="grid flex-1 place-items-center p-8 text-center">
+            <div className="grid flex-1 place-items-center bg-porcelain/40 p-8 text-center">
               <div>
-                <FileText className="mx-auto h-8 w-8 text-celadon" />
-                <p className="mt-3 text-[13.5px] text-ink-mute">Select a case from the inbox to open its thread.</p>
+                <span className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-paper shadow-sm ring-1 ring-hairline">
+                  <FileText className="h-6 w-6 text-ever-700" />
+                </span>
+                <p className="mt-4 text-[15px] font-semibold">Select a case</p>
+                <p className="mt-1 text-[13.5px] text-ink-mute">Pick a token from the inbox to open its thread and lab files.</p>
               </div>
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between border-b border-hairline px-4 py-3">
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setActive(null)} className="lg:hidden" aria-label="Back">
-                    <ChevronLeft className="h-5 w-5 text-ink-soft" />
+              <div className="flex items-center justify-between gap-3 border-b border-hairline px-5 py-3.5">
+                <div className="flex min-w-0 items-center gap-3">
+                  <button onClick={() => setActive(null)} className="btn btn-sm btn-ghost -ml-2 w-8 px-0 lg:hidden" aria-label="Back to inbox">
+                    <ChevronLeft className="h-5 w-5" />
                   </button>
-                  <span className="font-mono text-[13px] font-semibold text-ever-800">CASE #{active}</span>
+                  <Avatar label={active.slice(0, 1)} seed={active} size={38} />
+                  <div className="min-w-0 leading-tight">
+                    <p className="font-mono text-[14.5px] font-semibold">Case #{active}</p>
+                    <p className="text-[12.5px] text-ink-mute">{activePatient?.age} yrs · {activePatient?.sex}</p>
+                  </div>
+                  {activePatient && <span className="hidden sm:inline-flex"><StatusBadge status={activePatient.status} /></span>}
                 </div>
-                <button onClick={() => setShowLabs((v) => !v)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-hairline bg-porcelain px-2.5 py-1.5 text-[12px] font-semibold text-ink-soft">
-                  <FlaskConical className="h-3.5 w-3.5" /> Labs ({labs.length})
+                <button onClick={() => setShowLabs((v) => !v)} aria-expanded={showLabs}
+                  className={`btn btn-sm ${showLabs ? "btn-primary" : "btn-secondary"}`}>
+                  <FlaskConical className="h-3.5 w-3.5" /> Labs <span className="opacity-70">{labs.length}</span>
                 </button>
               </div>
 
@@ -109,55 +121,64 @@ export default function Doctor() {
                 {showLabs && (
                   <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
                     exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }}
-                    className="overflow-hidden border-b border-hairline bg-ever-50">
-                    {labs.length === 0 ? (
-                      <p className="px-4 py-3 text-[12.5px] text-ink-mute">No lab files against this token yet.</p>
-                    ) : labs.map((l) => (
-                      <div key={l.id} className="flex items-center justify-between px-4 py-2.5">
-                        <div>
-                          <p className="font-mono text-[12.5px] font-medium">{l.filename}</p>
-                          {l.note && <p className="text-[11.5px] text-ink-mute">{l.note}</p>}
+                    className="overflow-hidden border-b border-hairline bg-porcelain/60">
+                    <div className="flex flex-col gap-2 p-3">
+                      {labs.length === 0 ? (
+                        <p className="px-2 py-2 text-[13px] text-ink-mute">No lab files against this token yet.</p>
+                      ) : labs.map((l) => (
+                        <div key={l.id} className="surface flex items-center gap-3 px-3.5 py-2.5">
+                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-sky-100"><FileText className="h-4 w-4 text-sky-700" /></span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[13.5px] font-semibold">{l.filename}</p>
+                            {l.note && <p className="truncate text-[12px] text-ink-mute">{l.note}</p>}
+                          </div>
+                          <span className="text-[12px] text-ink-mute">{fmtTime(l.ts)}</span>
                         </div>
-                        <span className="font-mono text-[10.5px] text-ink-mute">{fmtTime(l.ts)}</span>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
                   </motion.div>
                 )}
               </AnimatePresence>
 
-              <div className="flex flex-1 flex-col gap-3 overflow-y-auto p-4">
-                {thread.map((m, i) => (
-                  <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring}
-                    className={`max-w-[80%] ${m.from === "doctor" ? "self-end" : "self-start"}`}>
-                    <div className={`rounded-xl px-3.5 py-2.5 text-[13.5px] leading-relaxed ${
-                      m.from === "doctor" ? "bg-ever-800 text-ever-50" : "border border-hairline bg-porcelain"}`}>
-                      {m.text}
-                    </div>
-                    <p className={`mt-0.5 px-1 font-mono text-[10px] text-ink-mute ${m.from === "doctor" ? "text-right" : ""}`}>{fmtTime(m.ts)}</p>
-                  </motion.div>
-                ))}
+              <div className="scroll-thin flex flex-1 flex-col gap-3 overflow-y-auto bg-porcelain/40 p-5">
+                {thread.map((m, i) => {
+                  const mine = m.from === "doctor";
+                  return (
+                    <motion.div key={i} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={spring}
+                      className={`max-w-[78%] ${mine ? "self-end" : "self-start"}`}>
+                      <div className={`px-4 py-2.5 text-[14px] leading-relaxed shadow-sm ${
+                        mine ? "rounded-2xl rounded-br-md bg-ever-800 text-white" : "rounded-2xl rounded-bl-md border border-hairline bg-paper"}`}>
+                        {m.text}
+                      </div>
+                      <p className={`mt-1 px-1 text-[11px] text-ink-mute ${mine ? "text-right" : ""}`}>{mine ? "You" : `#${active}`} · {fmtTime(m.ts)}</p>
+                    </motion.div>
+                  );
+                })}
                 {thread.length === 0 && (
-                  <p className="m-auto text-[13px] text-ink-mute">Thread is empty. Your reply starts it.</p>
+                  <p className="m-auto text-[13.5px] text-ink-mute">This thread is empty. Your reply starts it.</p>
                 )}
                 <div ref={endRef} />
               </div>
 
-              {/* snippets */}
-              <div className="flex gap-1.5 overflow-x-auto border-t border-hairline px-3 pt-2.5">
-                {SNIPPETS.map((s) => (
-                  <button key={s} onClick={() => setDraft(s)}
-                    className="whitespace-nowrap rounded-full border border-hairline bg-porcelain px-3 py-1 text-[11.5px] text-ink-soft hover:border-ever-600">
-                    {s.slice(0, 34)}…
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center gap-2 p-3">
-                <input value={draft} onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && send()}
-                  placeholder={`Reply to #${active}`}
-                  className="flex-1 rounded-xl border border-hairline bg-porcelain px-3.5 py-2.5 text-[13.5px] outline-none focus:border-ever-600" />
-                <Button isIconOnly onPress={send} aria-label="Send"
-                  className="rounded-xl bg-ever-800 text-ever-50"><Send className="h-4 w-4" /></Button>
+              {/* composer */}
+              <div className="border-t border-hairline bg-paper p-3">
+                <div className="scroll-thin mb-2.5 flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                  <Sparkles className="h-3.5 w-3.5 shrink-0 text-ink-mute" />
+                  {SNIPPETS.map((s) => (
+                    <button key={s} onClick={() => setDraft(s)} title={s}
+                      className="whitespace-nowrap rounded-full border border-hairline bg-porcelain px-3 py-1 text-[12px] font-medium text-ink-soft hover:border-ever-600/50 hover:text-ink">
+                      {s.length > 34 ? s.slice(0, 34) + "…" : s}
+                    </button>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2">
+                  <input value={draft} onChange={(e) => setDraft(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && send()}
+                    placeholder={`Reply to #${active}`} aria-label="Reply"
+                    className="field h-11 bg-porcelain" />
+                  <button onClick={send} aria-label="Send" disabled={!draft.trim()}
+                    className="btn btn-primary h-11 w-11 shrink-0 px-0 disabled:opacity-50"><Send className="h-4 w-4" /></button>
+                </div>
               </div>
             </>
           )}
