@@ -55,7 +55,7 @@ function LiveThread() {
   return (
     <div className="relative">
       <div className="absolute -inset-6 -z-10 rounded-[32px] bg-gradient-to-br from-ever-500/20 via-transparent to-marigold-500/15 blur-2xl" />
-      <div className="surface overflow-hidden shadow-[0_30px_80px_-30px_rgba(7,40,32,0.45)]">
+      <div className="surface overflow-hidden shadow-[0_30px_80px_-30px_rgba(74,26,16,0.35)]">
         <div className="flex items-center justify-between border-b border-hairline px-5 py-3.5">
           <div className="flex items-center gap-3">
             <span className="grid h-9 w-9 place-items-center rounded-full bg-ever-100 text-[12px] font-bold text-ever-800">MK</span>
@@ -298,7 +298,7 @@ export default function Landing() {
       {/* CTA */}
       <section className="mx-auto max-w-6xl px-5 pb-24">
         <motion.div {...inView()} className="relative overflow-hidden rounded-3xl bg-ever-900 px-8 py-14 text-center sm:px-14">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(50%_80%_at_80%_0%,rgba(34,163,131,0.45),transparent_70%),radial-gradient(40%_60%_at_0%_100%,rgba(232,163,61,0.22),transparent_70%)]" />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(50%_80%_at_80%_0%,rgba(242,147,125,0.55),transparent_70%),radial-gradient(40%_60%_at_0%_100%,rgba(246,185,138,0.35),transparent_70%)]" />
           <div className="relative">
             <h2 className="font-display text-[clamp(1.8rem,3.4vw,2.5rem)] font-bold text-white">Have a token from reception?</h2>
             <p className="mx-auto mt-3 max-w-md text-[15.5px] text-white/80">Open your file, message your doctor and collect your reports in under a minute.</p>

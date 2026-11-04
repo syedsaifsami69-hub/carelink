@@ -37,7 +37,7 @@ export default function Patient() {
         <motion.div initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={spring}
           className="surface mx-auto grid max-w-3xl overflow-hidden md:grid-cols-2">
           <div className="relative hidden flex-col justify-between overflow-hidden bg-ever-900 p-8 text-white md:flex">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_60%_at_100%_0%,rgba(34,163,131,0.5),transparent_70%)]" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(70%_60%_at_100%_0%,rgba(242,147,125,0.55),transparent_70%)]" />
             <div className="relative">
               <span className="grid h-11 w-11 place-items-center rounded-xl bg-white/10 ring-1 ring-white/15"><ShieldCheck className="h-5 w-5" /></span>
               <h2 className="mt-6 font-display text-[22px] font-bold leading-snug">Your care, without your name on it.</h2>
